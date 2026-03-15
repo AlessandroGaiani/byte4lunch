@@ -5,6 +5,58 @@ const { authMiddleware, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Sistema premi recensori
+const BADGES = [
+  { min: 30, name: 'Platino', icon: '💎', color: '#b0c4de' },
+  { min: 20, name: 'Oro',     icon: '🥇', color: '#ffd700' },
+  { min: 15, name: 'Argento', icon: '🥈', color: '#c0c0c0' },
+  { min: 10, name: 'Bronzo',  icon: '🥉', color: '#cd7f32' },
+  { min: 5,  name: 'Rame',    icon: '🏅', color: '#b87333' },
+];
+function getBadge(reviewCount) {
+  for (const b of BADGES) {
+    if (reviewCount >= b.min) return { ...b, count: reviewCount };
+  }
+  return null;
+}
+function getNextBadge(reviewCount) {
+  for (let i = BADGES.length - 1; i >= 0; i--) {
+    if (reviewCount < BADGES[i].min) return { ...BADGES[i], remaining: BADGES[i].min - reviewCount };
+  }
+  return null;
+}
+
+// GET /api/users/me/badge — badge dell'utente corrente
+router.get('/me/badge', authMiddleware, async (req, res) => {
+  try {
+    const result = await db.get('SELECT COUNT(*) as cnt FROM reviews WHERE user_id = ?', [req.user.id]);
+    const count = result ? Number(result.cnt) : 0;
+    res.json({ count, badge: getBadge(count), next: getNextBadge(count) });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// GET /api/users/leaderboard — classifica recensori con badge
+router.get('/leaderboard', async (req, res) => {
+  try {
+    const rows = await db.all(`
+      SELECT u.id, u.name, COUNT(rv.id) as review_count
+      FROM users u
+      JOIN reviews rv ON rv.user_id = u.id
+      WHERE u.active = 1
+      GROUP BY u.id
+      ORDER BY review_count DESC
+      LIMIT 20
+    `);
+    res.json(rows.map(r => ({ ...r, review_count: Number(r.review_count), badge: getBadge(Number(r.review_count)) })));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
 // GET /api/users — solo admin
 router.get('/', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
@@ -24,6 +76,14 @@ router.put('/:id/role', authMiddleware, requireRole('admin'), async (req, res) =
     const { role } = req.body;
     if (!['admin','reviewer','user'].includes(role)) return res.status(400).json({ error: 'Ruolo non valido' });
     if (parseInt(req.params.id) === req.user.id) return res.status(400).json({ error: 'Non puoi cambiare il tuo ruolo' });
+
+    // Se stiamo togliendo il ruolo admin a qualcuno, verifica che resti almeno un altro admin attivo
+    const target = await db.get('SELECT role FROM users WHERE id = ?', [req.params.id]);
+    if (target && target.role === 'admin' && role !== 'admin') {
+      const adminCount = await db.get('SELECT COUNT(*) as cnt FROM users WHERE role = ? AND active = 1', ['admin']);
+      if (adminCount.cnt <= 1) return res.status(400).json({ error: 'Deve esserci almeno un amministratore attivo' });
+    }
+
     await db.run('UPDATE users SET role = ? WHERE id = ?', [role, req.params.id]);
     res.json({ message: 'Ruolo aggiornato' });
   } catch (e) {
@@ -37,6 +97,16 @@ router.put('/:id/active', authMiddleware, requireRole('admin'), async (req, res)
   try {
     const { active } = req.body;
     if (parseInt(req.params.id) === req.user.id) return res.status(400).json({ error: 'Non puoi disattivare te stesso' });
+
+    // Se stiamo disattivando un admin, verifica che resti almeno un altro admin attivo
+    if (!active) {
+      const target = await db.get('SELECT role FROM users WHERE id = ?', [req.params.id]);
+      if (target && target.role === 'admin') {
+        const adminCount = await db.get('SELECT COUNT(*) as cnt FROM users WHERE role = ? AND active = 1', ['admin']);
+        if (adminCount.cnt <= 1) return res.status(400).json({ error: 'Deve esserci almeno un amministratore attivo' });
+      }
+    }
+
     await db.run('UPDATE users SET active = ? WHERE id = ?', [active ? 1 : 0, req.params.id]);
     res.json({ message: active ? 'Utente attivato' : 'Utente disattivato' });
   } catch (e) {
