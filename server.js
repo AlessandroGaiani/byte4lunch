@@ -10,16 +10,7 @@ const PORT = process.env.PORT || 3000;
 
 // ── Sicurezza ────────────────────────────────────────────
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:"],
-      connectSrc: ["'self'", "https://nominatim.openstreetmap.org"],
-    }
-  }
+  contentSecurityPolicy: false
 }));
 
 app.use(cors({
