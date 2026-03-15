@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>byte4lunch</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231a1a18'/%3E%3Cpath d='M50 8C26.8 8 8 26.8 8 50S26.8 92 50 92 92 73.2 92 50C92 38.7 87.4 28.4 79.9 21' stroke='%236BBF3E' stroke-width='9' stroke-linecap='round' fill='none'/%3E%3Cpath d='M50 22C33.4 22 20 35.4 20 52S33.4 82 50 82 80 66.6 80 52C80 44 76.8 36.7 71.5 31.4' stroke='%236BBF3E' stroke-width='8' stroke-linecap='round' fill='none'/%3E%3Cpath d='M50 36C41.7 36 35 42.7 35 51S41.7 66 50 66 65 59.3 65 51C65 46.9 63.3 43.2 60.5 40.5' stroke='%236BBF3E' stroke-width='7' stroke-linecap='round' fill='none'/%3E%3Ccircle cx='50' cy='51' r='5.5' fill='%236BBF3E'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -176,6 +177,7 @@ nav{position:sticky;top:0;z-index:100;background:var(--dark);display:flex;align-
       <input class="form-input" id="rvNewName" placeholder="Nome ristorante">
       <input class="form-input" style="margin-top:8px" id="rvNewPlace" placeholder="Luogo / città">
       <input class="form-input" style="margin-top:8px" id="rvNewAddress" placeholder="Indirizzo (opzionale)">
+      <input class="form-input" style="margin-top:8px" id="rvNewPhone" placeholder="Telefono (opzionale)" type="tel">
     </div>
     <div class="form-group"><label class="form-label">Data visita</label><input class="form-input" type="date" id="rvDate"></div>
     <div class="form-group"><label class="form-label">Qualità cibo (1-5 globi)</label><div class="glob-picker" id="pickQualita" data-field="qualita"></div></div>
@@ -366,7 +368,14 @@ async function openDetail(id){
     const r=await api('GET','/restaurants/'+id);
     document.getElementById('detailName').textContent=r.name;
     document.getElementById('detailPlace').textContent=`📍 ${r.place}${r.address?', '+r.address:''}`;
-    let html='';
+    const mapsQuery=encodeURIComponent(`${r.name} ${r.address||''} ${r.place}`);
+    const googleUrl=`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
+    const appleUrl=`https://maps.apple.com/?q=${mapsQuery}`;
+    let html=`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">`;
+    if(r.phone)html+=`<a href="tel:${esc(r.phone)}" class="btn btn-outline btn-sm" style="text-decoration:none">📞 ${esc(r.phone)}</a>`;
+    html+=`<a href="${googleUrl}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none">🗺 Google Maps</a>`;
+    html+=`<a href="${appleUrl}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none">🍎 Apple Maps</a>`;
+    html+=`</div>`;
     if(r.review_count>0){
       html+=`<div class="score-card">
         <div class="big-score">${globo(44,true)}<div><div class="big-score-val">${r.avg_score}</div><div class="big-score-label">punteggio globi</div></div></div>
@@ -404,7 +413,7 @@ function goReviewThis(rid){showPage('newReview');setTimeout(()=>{document.getEle
 async function renderNewReview(){
   reviewScores={qualita:0,velocita:0,prezzo:0};
   document.getElementById('rvDate').value=new Date().toISOString().split('T')[0];
-  ['rvNota','rvNewName','rvNewPlace','rvNewAddress'].forEach(id=>document.getElementById(id).value='');
+  ['rvNota','rvNewName','rvNewPlace','rvNewAddress','rvNewPhone'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('rvSimpatia').checked=false;document.getElementById('rvCaffe').checked=false;
   document.getElementById('rvError').style.display='none';
   try{const rests=await api('GET','/restaurants');const sel=document.getElementById('rvRistorante');
@@ -425,7 +434,7 @@ async function submitReview(){
   if(!reviewScores.qualita||!reviewScores.velocita||!reviewScores.prezzo){errEl.textContent='Assegna i globi per tutti i criteri';errEl.style.display='block';return;}
   const btn=document.getElementById('rvSubmit');btn.disabled=true;btn.textContent='Invio…';
   try{
-    if(!rid&&newName){const rest=await api('POST','/restaurants',{name:newName,place:document.getElementById('rvNewPlace').value.trim()||'—',address:document.getElementById('rvNewAddress').value.trim(),tags:['menu fisso']});rid=rest.id;}
+    if(!rid&&newName){const rest=await api('POST','/restaurants',{name:newName,place:document.getElementById('rvNewPlace').value.trim()||'—',address:document.getElementById('rvNewAddress').value.trim(),phone:document.getElementById('rvNewPhone').value.trim()||null,tags:['menu fisso']});rid=rest.id;}
     await api('POST','/reviews',{restaurant_id:rid,visit_date:document.getElementById('rvDate').value,qualita:reviewScores.qualita,velocita:reviewScores.velocita,prezzo:reviewScores.prezzo,bonus_simpatia:document.getElementById('rvSimpatia').checked,bonus_caffe:document.getElementById('rvCaffe').checked,note:document.getElementById('rvNota').value.trim()});
     toast('Recensione pubblicata! 🎉');openDetail(rid);
   }catch(e){errEl.textContent=e.message;errEl.style.display='block';}
@@ -506,10 +515,11 @@ async function renderAdmin(){
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <input class="form-input" id="adRN" placeholder="Nome" style="flex:2;min-width:140px">
           <input class="form-input" id="adRP" placeholder="Luogo" style="flex:1;min-width:120px">
+          <input class="form-input" id="adRPh" placeholder="Telefono" type="tel" style="flex:1;min-width:120px">
           <button class="btn btn-primary" onclick="adminAddRest()">Aggiungi</button>
         </div></div>
-        <div style="overflow-x:auto"><table class="admin-table"><tr><th>Nome</th><th>Luogo</th><th>Recensioni</th><th></th></tr>
-        ${rests.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.place)}</td><td>${r.review_count}</td>
+        <div style="overflow-x:auto"><table class="admin-table"><tr><th>Nome</th><th>Luogo</th><th>Telefono</th><th>Recensioni</th><th></th></tr>
+        ${rests.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.place)}</td><td style="font-size:.8rem">${r.phone?<a href="tel:${esc(r.phone)}">${esc(r.phone)}</a>:'—'}</td><td>${r.review_count}</td>
           <td><button class="btn btn-danger btn-sm" onclick="adminDeleteRest(${r.id})">Rimuovi</button></td></tr>`).join('')}
         </table></div>`;
     }
@@ -522,7 +532,7 @@ async function adminCreateUser(){try{await api('POST','/users',{name:document.ge
 async function adminCreateInvite(){try{const data=await api('POST','/auth/invites',{email:document.getElementById('invE').value.trim()||null,role:document.getElementById('invR').value});document.getElementById('inviteResult').innerHTML=`<div class="invite-box"><strong>Link:</strong><br>${data.link}<br><br><strong>Token:</strong> ${data.token}<br><strong>Scade:</strong> ${data.expires_at.slice(0,10)}</div>`;renderAdmin();}catch(e){toast('Errore: '+e.message);}}
 async function adminDeleteReview(rid){if(!confirm('Eliminare?'))return;try{await api('DELETE','/reviews/'+rid);renderAdmin();toast('Eliminata');}catch(e){toast('Errore: '+e.message);}}
 async function adminDeleteRest(rid){if(!confirm('Rimuovere?'))return;try{await api('DELETE','/restaurants/'+rid);renderAdmin();toast('Rimosso');}catch(e){toast('Errore: '+e.message);}}
-async function adminAddRest(){const n=document.getElementById('adRN').value.trim(),p=document.getElementById('adRP').value.trim();if(!n||!p)return;try{await api('POST','/restaurants',{name:n,place:p,tags:['menu fisso']});renderAdmin();toast('Aggiunto!');}catch(e){toast('Errore: '+e.message);}}
+async function adminAddRest(){const n=document.getElementById('adRN').value.trim(),p=document.getElementById('adRP').value.trim(),ph=document.getElementById('adRPh').value.trim();if(!n||!p)return;try{await api('POST','/restaurants',{name:n,place:p,phone:ph||null,tags:['menu fisso']});renderAdmin();toast('Aggiunto!');}catch(e){toast('Errore: '+e.message);}}
 
 loadSession();updateNav();renderHome();
 </script>
