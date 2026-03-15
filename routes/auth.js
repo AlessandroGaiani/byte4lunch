@@ -45,35 +45,23 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
 });
 
-// POST /api/auth/register (solo con invite token)
+// POST /api/auth/register (registrazione libera, ruolo 'user' di default)
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, invite_token } = req.body;
-    if (!name || !email || !password || !invite_token) {
-      return res.status(400).json({ error: 'Tutti i campi sono obbligatori' });
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'Nome, email e password sono obbligatori' });
     }
     if (password.length < 8) return res.status(400).json({ error: 'Password minimo 8 caratteri' });
-
-    const invite = await db.get(`
-      SELECT * FROM invite_tokens
-      WHERE token = ? AND used_at IS NULL AND expires_at > datetime('now')
-    `, [invite_token]);
-
-    if (!invite) return res.status(400).json({ error: 'Token invito non valido o scaduto' });
-    if (invite.email && invite.email !== email.toLowerCase().trim()) {
-      return res.status(400).json({ error: "Questo invito è per un'altra email" });
-    }
 
     const existing = await db.get('SELECT id FROM users WHERE email = ?', [email.toLowerCase().trim()]);
     if (existing) return res.status(409).json({ error: 'Email già registrata' });
 
     const hash = bcrypt.hashSync(password, 12);
     const result = await db.run(
-      `INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)`,
-      [name.trim(), email.toLowerCase().trim(), hash, invite.role]
+      `INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'user')`,
+      [name.trim(), email.toLowerCase().trim(), hash]
     );
-
-    await db.run(`UPDATE invite_tokens SET used_at = datetime('now') WHERE id = ?`, [invite.id]);
 
     const user = await db.get('SELECT id, name, email, role FROM users WHERE id = ?', [result.lastInsertRowid]);
     const token = jwt.sign(
