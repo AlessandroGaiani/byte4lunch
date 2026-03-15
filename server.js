@@ -4,9 +4,9 @@ const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const { initDatabase } = require('./database');
 
 const app = express();
-app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
 // ── Sicurezza ────────────────────────────────────────────
@@ -16,7 +16,7 @@ app.use(helmet({
 
 app.use(cors({
   origin: process.env.ALLOWED_ORIGIN || '*',
-  methods: ['GET','POST','PUT','DELETE'],
+  methods: ['GET','POST','PUT','PATCH','DELETE'],
   allowedHeaders: ['Content-Type','Authorization']
 }));
 
@@ -27,6 +27,7 @@ app.use('/api/', rateLimit({
   message: { error: 'Troppe richieste. Riprova tra qualche minuto.' }
 }));
 
+app.set('trust proxy', 1);
 app.use(express.json({ limit: '10kb' }));
 
 // ── Routes API ───────────────────────────────────────────
@@ -47,8 +48,16 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Errore interno del server' });
 });
 
-app.listen(PORT, () => {
-  console.log(`\n🍝 byte4lunch in esecuzione su http://localhost:${PORT}`);
-  console.log(`   Ambiente: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`   Database: ./data/byte4lunch.db\n`);
-});
+// ── Avvio: inizializza DB poi ascolta ────────────────────
+initDatabase()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`\n🍝 byte4lunch in esecuzione su http://localhost:${PORT}`);
+      console.log(`   Ambiente: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`   Database: Turso (${process.env.TURSO_DATABASE_URL})\n`);
+    });
+  })
+  .catch(err => {
+    console.error('❌ Errore inizializzazione database:', err);
+    process.exit(1);
+  });
