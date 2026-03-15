@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>byte4lunch — lunch driven effectiveness</title>
+<title>byte4lunch — Il pranzo dei pro</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231a1a18'/%3E%3Cpath d='M50 8C26.8 8 8 26.8 8 50S26.8 92 50 92 92 73.2 92 50C92 38.7 87.4 28.4 79.9 21' stroke='%236BBF3E' stroke-width='9' stroke-linecap='round' fill='none'/%3E%3Cpath d='M50 22C33.4 22 20 35.4 20 52S33.4 82 50 82 80 68.6 80 52C80 44 76.8 36.7 71.5 31.4' stroke='%236BBF3E' stroke-width='8' stroke-linecap='round' fill='none'/%3E%3Cpath d='M50 36C41.7 36 35 42.7 35 51S41.7 66 50 66 65 59.3 65 51C65 46.9 63.3 43.2 60.5 40.5' stroke='%236BBF3E' stroke-width='7' stroke-linecap='round' fill='none'/%3E%3Ccircle cx='50' cy='51' r='5.5' fill='%236BBF3E'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
@@ -153,6 +153,7 @@ nav{position:sticky;top:0;z-index:100;background:var(--dark);display:flex;align-
       <button class="btn btn-outline" id="nearMeBtn" onclick="enableNearMe()" style="font-size:.78rem;padding:7px 16px;border-color:rgba(107,191,62,.5);color:var(--green-light)">📍 Vicino a me</button>
     </div>
   </div>
+  <div id="reviewerBanner" style="padding:0 16px;margin-bottom:8px"></div>
   <div class="section">
     <div class="section-title">Ultime recensioni</div>
     <div id="homeLatest"><div class="loading-wrap"><div class="spinner"></div></div></div>
@@ -224,15 +225,14 @@ nav{position:sticky;top:0;z-index:100;background:var(--dark);display:flex;align-
       <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="loginEmail" placeholder="nome@omega.it" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <div class="form-group"><label class="form-label">Password</label><input class="form-input" type="password" id="loginPwd" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <button class="btn btn-primary" style="width:100%;padding:12px;font-size:1rem;margin-top:4px" id="loginBtn" onclick="doLogin()">Accedi</button>
-      <p style="text-align:center;margin-top:14px;font-size:.78rem;color:var(--gray);font-family:'Space Mono',monospace;cursor:pointer" onclick="showRegister()">Hai un codice invito? Registrati →</p>
+      <p style="text-align:center;margin-top:14px;font-size:.78rem;color:var(--gray);font-family:'Space Mono',monospace;cursor:pointer" onclick="showRegister()">Non hai un account? Registrati →</p>
     </div>
     <div id="registerPanel" style="display:none">
-      <div class="login-title">Registrati</div><div class="login-sub">Usa il tuo codice invito</div>
+      <div class="login-title">Registrati</div><div class="login-sub">Crea il tuo account</div>
       <div class="error-msg" id="regError"></div>
-      <div class="form-group"><label class="form-label">Nome completo</label><input class="form-input" id="regName" placeholder="Mario Rossi"></div>
-      <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="regEmail" placeholder="nome@omega.it"></div>
-      <div class="form-group"><label class="form-label">Password (min. 8 caratteri)</label><input class="form-input" type="password" id="regPwd" placeholder="••••••••"></div>
-      <div class="form-group"><label class="form-label">Codice invito</label><input class="form-input" id="regToken" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
+      <div class="form-group"><label class="form-label">Nome completo</label><input class="form-input" id="regName" placeholder="Mario Rossi" onkeydown="if(event.key==='Enter')doRegister()"></div>
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="regEmail" placeholder="nome@omega.it" onkeydown="if(event.key==='Enter')doRegister()"></div>
+      <div class="form-group"><label class="form-label">Password (min. 8 caratteri)</label><input class="form-input" type="password" id="regPwd" placeholder="••••••••" onkeydown="if(event.key==='Enter')doRegister()"></div>
       <button class="btn btn-primary" style="width:100%;padding:12px;font-size:1rem;margin-top:4px" id="regBtn" onclick="doRegister()">Crea account</button>
       <p style="text-align:center;margin-top:14px;font-size:.78rem;color:var(--gray);font-family:'Space Mono',monospace;cursor:pointer" onclick="showLogin()">← Torna al login</p>
     </div>
@@ -335,7 +335,22 @@ async function renderHome(){
     const data=await api('GET','/restaurants');
     const latest=data.slice(0,2);
     document.getElementById('homeLatest').innerHTML=latest.length?latest.map(r=>card(r)).join(''):'<div class="empty"><p>Nessuna recensione ancora</p></div>';
+    // Banner richiesta reviewer per utenti con ruolo "user"
+    const bannerEl=document.getElementById('reviewerBanner');
+    if(bannerEl){
+      if(currentUser&&currentUser.role==='user'){
+        const me=await api('GET','/auth/me');
+        if(me.role_request==='pending'){
+          bannerEl.innerHTML='<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:14px;text-align:center;font-size:.88rem">⏳ Richiesta reviewer inviata — in attesa di approvazione</div>';
+        }else{
+          bannerEl.innerHTML='<div style="background:#e8f5e9;border:1px solid var(--green);border-radius:10px;padding:14px;text-align:center;font-size:.88rem">Vuoi scrivere recensioni? <button class="btn btn-primary" style="margin-left:8px;padding:6px 16px;font-size:.85rem" onclick="requestReviewer()">Diventa reviewer</button></div>';
+        }
+      }else{bannerEl.innerHTML='';}
+    }
   }catch{document.getElementById('homeLatest').innerHTML='<div class="empty"><p>Errore caricamento</p></div>';}
+}
+async function requestReviewer(){
+  try{await api('POST','/users/request-reviewer');toast('Richiesta inviata! 🎉');renderHome();}catch(e){toast('Errore: '+e.message);}
 }
 function goSearch(){showPage('list');}
 
@@ -472,7 +487,7 @@ async function submitReview(){
 
 function showLogin(){document.getElementById('loginPanel').style.display='';document.getElementById('registerPanel').style.display='none';document.getElementById('loginError').style.display='none';}
 function showRegister(){document.getElementById('loginPanel').style.display='none';document.getElementById('registerPanel').style.display='';document.getElementById('regError').style.display='none';}
-function checkInviteParam(){const p=new URLSearchParams(window.location.search);const inv=p.get('invite');if(inv){showRegister();document.getElementById('regToken').value=inv;}}
+function checkInviteParam(){}
 
 async function doLogin(){
   const errEl=document.getElementById('loginError');errEl.style.display='none';
@@ -484,7 +499,7 @@ async function doLogin(){
 async function doRegister(){
   const errEl=document.getElementById('regError');errEl.style.display='none';
   const btn=document.getElementById('regBtn');btn.disabled=true;btn.textContent='Registrazione…';
-  try{const data=await api('POST','/auth/register',{name:document.getElementById('regName').value,email:document.getElementById('regEmail').value,password:document.getElementById('regPwd').value,invite_token:document.getElementById('regToken').value});saveSession(data.token,data.user);updateNav();toast('Benvenuto, '+data.user.name+'! 🎉');showPage('home');history.replaceState({},'','/');}
+  try{const data=await api('POST','/auth/register',{name:document.getElementById('regName').value,email:document.getElementById('regEmail').value,password:document.getElementById('regPwd').value});saveSession(data.token,data.user);updateNav();toast('Benvenuto, '+data.user.name+'! 🎉');showPage('home');}
   catch(e){errEl.textContent=e.message;errEl.style.display='block';}
   finally{btn.disabled=false;btn.textContent='Crea account';}
 }
@@ -498,7 +513,9 @@ async function renderAdmin(){
   try{
     if(currentAdminTab==='users'){
       const users=await api('GET','/users');
-      el.innerHTML=`<div style="margin-bottom:20px"><div style="font-family:'Syne',sans-serif;font-weight:700;margin-bottom:10px">Crea utente</div>
+      const pending=users.filter(u=>u.role_request==='pending');
+      const pendingHtml=pending.length?`<div style="margin-bottom:20px;background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:14px"><div style="font-family:'Syne',sans-serif;font-weight:700;margin-bottom:10px">🔔 Richieste in attesa (${pending.length})</div>${pending.map(u=>`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;flex-wrap:wrap"><span style="flex:1;min-width:120px"><strong>${esc(u.name)}</strong> (${esc(u.email)})</span><button class="btn btn-primary btn-sm" onclick="approveReviewer(${u.id})">✓ Approva</button><button class="btn btn-sm btn-danger" onclick="denyReviewer(${u.id})">✕ Rifiuta</button></div>`).join('')}</div>`:'';
+      el.innerHTML=pendingHtml+`<div style="margin-bottom:20px"><div style="font-family:'Syne',sans-serif;font-weight:700;margin-bottom:10px">Crea utente</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <input class="form-input" id="adUN" placeholder="Nome" style="flex:2;min-width:120px">
           <input class="form-input" id="adUE" placeholder="Email" style="flex:2;min-width:160px">
@@ -556,6 +573,8 @@ async function renderAdmin(){
 }
 
 async function adminChangeRole(uid,role){try{await api('PUT','/users/'+uid+'/role',{role});toast('Ruolo aggiornato');renderAdmin();}catch(e){toast('Errore: '+e.message);}}
+async function approveReviewer(uid){try{await api('PUT','/users/'+uid+'/approve-reviewer');toast('Utente promosso a reviewer ✓');renderAdmin();}catch(e){toast('Errore: '+e.message);}}
+async function denyReviewer(uid){try{await api('PUT','/users/'+uid+'/deny-reviewer');toast('Richiesta rifiutata');renderAdmin();}catch(e){toast('Errore: '+e.message);}}
 async function adminToggleActive(uid,active){try{await api('PUT','/users/'+uid+'/active',{active});renderAdmin();}catch(e){toast('Errore: '+e.message);}}
 async function adminCreateUser(){try{await api('POST','/users',{name:document.getElementById('adUN').value,email:document.getElementById('adUE').value,password:document.getElementById('adUP').value,role:document.getElementById('adUR').value});toast('Utente creato!');renderAdmin();}catch(e){toast('Errore: '+e.message);}}
 async function adminCreateInvite(){try{const data=await api('POST','/auth/invites',{email:document.getElementById('invE').value.trim()||null,role:document.getElementById('invR').value});document.getElementById('inviteResult').innerHTML=`<div class="invite-box"><strong>Link:</strong><br>${data.link}<br><br><strong>Token:</strong> ${data.token}<br><strong>Scade:</strong> ${data.expires_at.slice(0,10)}</div>`;renderAdmin();}catch(e){toast('Errore: '+e.message);}}
