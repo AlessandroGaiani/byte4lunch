@@ -132,6 +132,7 @@ nav{position:sticky;top:0;z-index:100;background:var(--dark);display:flex;align-
     <button class="btn btn-ghost" onclick="showPage('list')" id="navList" style="display:none">Ristoranti</button>
     <button class="btn btn-ghost" onclick="showPage('admin')" id="navAdmin" style="display:none">Admin</button>
     <button class="btn btn-ghost" onclick="showPage('newReview')" id="navReview" style="display:none">+ Recensione</button>
+    <button class="btn btn-ghost" onclick="showPage('password')" id="navPassword" style="display:none">🔒 Password</button>
     <button class="btn btn-ghost" onclick="logout()" id="navLogout" style="display:none">Esci</button>
     <button class="btn btn-primary" onclick="showPage('login')" id="navLogin">Accedi</button>
   </div>
@@ -232,11 +233,32 @@ nav{position:sticky;top:0;z-index:100;background:var(--dark);display:flex;align-
       <div class="error-msg" id="regError"></div>
       <div class="form-group"><label class="form-label">Nome completo</label><input class="form-input" id="regName" placeholder="Mario Rossi" onkeydown="if(event.key==='Enter')doRegister()"></div>
       <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="regEmail" placeholder="nome@omega.it" onkeydown="if(event.key==='Enter')doRegister()"></div>
-      <div class="form-group"><label class="form-label">Password (min. 8 caratteri)</label><input class="form-input" type="password" id="regPwd" placeholder="••••••••" onkeydown="if(event.key==='Enter')doRegister()"></div>
+      <div class="form-group"><label class="form-label">Password</label><input class="form-input" type="password" id="regPwd" placeholder="••••••••" onkeydown="if(event.key==='Enter')doRegister()" oninput="checkRegPwdStrength()"></div>
+      <div id="regPwdRules" style="font-size:.75rem;margin:-6px 0 10px;color:var(--gray)">Min 8 caratteri, maiuscola, minuscola, numero, carattere speciale</div>
       <button class="btn btn-primary" style="width:100%;padding:12px;font-size:1rem;margin-top:4px" id="regBtn" onclick="doRegister()">Crea account</button>
       <p style="text-align:center;margin-top:14px;font-size:.78rem;color:var(--gray);font-family:'Space Mono',monospace;cursor:pointer" onclick="showLogin()">← Torna al login</p>
     </div>
   </div></div>
+</div>
+
+<!-- PASSWORD -->
+<div class="page" id="page-password">
+  <div class="form-page">
+    <div class="form-title">Cambia password</div>
+    <div class="error-msg" id="pwdError"></div>
+    <div class="form-group"><label class="form-label">Password attuale</label><input class="form-input" type="password" id="pwdCurrent" placeholder="••••••••"></div>
+    <div class="form-group"><label class="form-label">Nuova password</label><input class="form-input" type="password" id="pwdNew" placeholder="••••••••" oninput="checkPwdStrength()"></div>
+    <div id="pwdRules" style="font-size:.78rem;margin:-6px 0 10px;color:var(--gray)">
+      <div id="pr1">✗ Minimo 8 caratteri</div>
+      <div id="pr2">✗ Una lettera maiuscola</div>
+      <div id="pr3">✗ Una lettera minuscola</div>
+      <div id="pr4">✗ Un numero</div>
+      <div id="pr5">✗ Un carattere speciale (!@#$%...)</div>
+    </div>
+    <div class="form-group"><label class="form-label">Conferma nuova password</label><input class="form-input" type="password" id="pwdConfirm" placeholder="••••••••"></div>
+    <button class="btn btn-primary" style="width:100%;padding:12px;font-size:1rem;margin-top:4px" id="pwdBtn" onclick="doChangePassword()">Aggiorna password</button>
+    <div id="pwdSuccess" style="display:none;margin-top:12px;background:#d1e7dd;border:1px solid var(--green);border-radius:10px;padding:14px;text-align:center;font-size:.88rem;color:#0a5c36"></div>
+  </div>
 </div>
 
 <!-- ADMIN -->
@@ -245,7 +267,6 @@ nav{position:sticky;top:0;z-index:100;background:var(--dark);display:flex;align-
     <div class="form-title">Pannello amministratore</div>
     <div class="admin-tabs">
       <div class="admin-tab active" onclick="adminTab('users',this)">Utenti</div>
-      <div class="admin-tab" onclick="adminTab('invites',this)">Inviti</div>
       <div class="admin-tab" onclick="adminTab('reviews',this)">Recensioni</div>
       <div class="admin-tab" onclick="adminTab('restaurants',this)">Ristoranti</div>
     </div>
@@ -321,6 +342,7 @@ function showPage(name){
   if(name==='newReview')renderNewReview();
   if(name==='admin'){currentAdminTab='users';document.querySelectorAll('.admin-tab').forEach((t,i)=>t.classList.toggle('active',i===0));renderAdmin();}
   if(name==='login'){showLogin();checkInviteParam();}
+  if(name==='password'){document.getElementById('pwdCurrent').value='';document.getElementById('pwdNew').value='';document.getElementById('pwdConfirm').value='';document.getElementById('pwdError').style.display='none';document.getElementById('pwdSuccess').style.display='none';checkPwdStrength();}
 }
 function goBack(){showPage(prevPage||'list');}
 function toggleMenu(){document.getElementById('navActions').classList.toggle('open');}
@@ -496,6 +518,7 @@ async function doLogin(){
   catch(e){errEl.textContent=e.message;errEl.style.display='block';}
   finally{btn.disabled=false;btn.textContent='Accedi';}
 }
+function checkRegPwdStrength(){const p=document.getElementById('regPwd').value;const ok=p.length>=8&&/[A-Z]/.test(p)&&/[a-z]/.test(p)&&/[0-9]/.test(p)&&/[^A-Za-z0-9]/.test(p);document.getElementById('regPwdRules').style.color=p.length===0?'var(--gray)':ok?'var(--green)':'#e85d04';}
 async function doRegister(){
   const errEl=document.getElementById('regError');errEl.style.display='none';
   const btn=document.getElementById('regBtn');btn.disabled=true;btn.textContent='Registrazione…';
@@ -504,7 +527,23 @@ async function doRegister(){
   finally{btn.disabled=false;btn.textContent='Crea account';}
 }
 function logout(){clearSession();updateNav();toast('Logout effettuato');showPage('home');}
-function updateNav(){const li=!!currentUser;document.getElementById('navLogin').style.display=li?'none':'';document.getElementById('navLogout').style.display=li?'':'none';document.getElementById('navList').style.display=li?'':'none';document.getElementById('navUser').textContent=li?currentUser.name:'';document.getElementById('navReview').style.display=li&&['admin','reviewer'].includes(currentUser.role)?'':'none';document.getElementById('navAdmin').style.display=li&&currentUser.role==='admin'?'':'none';}
+function updateNav(){const li=!!currentUser;document.getElementById('navLogin').style.display=li?'none':'';document.getElementById('navLogout').style.display=li?'':'none';document.getElementById('navList').style.display=li?'':'none';document.getElementById('navUser').textContent=li?currentUser.name:'';document.getElementById('navReview').style.display=li&&['admin','reviewer'].includes(currentUser.role)?'':'none';document.getElementById('navAdmin').style.display=li&&currentUser.role==='admin'?'':'none';document.getElementById('navPassword').style.display=li?'':'none';}
+function checkPwdStrength(){
+  const p=document.getElementById('pwdNew').value;
+  const rules=[{id:'pr1',ok:p.length>=8},{id:'pr2',ok:/[A-Z]/.test(p)},{id:'pr3',ok:/[a-z]/.test(p)},{id:'pr4',ok:/[0-9]/.test(p)},{id:'pr5',ok:/[^A-Za-z0-9]/.test(p)}];
+  const labels=['Minimo 8 caratteri','Una lettera maiuscola','Una lettera minuscola','Un numero','Un carattere speciale (!@#$%...)'];
+  rules.forEach((r,i)=>{const el=document.getElementById(r.id);el.textContent=(r.ok?'✓ ':'✗ ')+labels[i];el.style.color=r.ok?'var(--green)':'var(--gray)';});
+}
+async function doChangePassword(){
+  const errEl=document.getElementById('pwdError');const sucEl=document.getElementById('pwdSuccess');errEl.style.display='none';sucEl.style.display='none';
+  const cur=document.getElementById('pwdCurrent').value;const nw=document.getElementById('pwdNew').value;const conf=document.getElementById('pwdConfirm').value;
+  if(!cur||!nw||!conf){errEl.textContent='Compila tutti i campi';errEl.style.display='block';return;}
+  if(nw!==conf){errEl.textContent='Le password non coincidono';errEl.style.display='block';return;}
+  const btn=document.getElementById('pwdBtn');btn.disabled=true;btn.textContent='Aggiornamento…';
+  try{await api('POST','/auth/change-password',{current_password:cur,new_password:nw});sucEl.textContent='Password aggiornata con successo ✓';sucEl.style.display='block';document.getElementById('pwdCurrent').value='';document.getElementById('pwdNew').value='';document.getElementById('pwdConfirm').value='';checkPwdStrength();}
+  catch(e){errEl.textContent=e.message;errEl.style.display='block';}
+  finally{btn.disabled=false;btn.textContent='Aggiorna password';}
+}
 
 function adminTab(tab,el){document.querySelectorAll('.admin-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');currentAdminTab=tab;renderAdmin();}
 async function renderAdmin(){
@@ -532,21 +571,6 @@ async function renderAdmin(){
             <select onchange="adminChangeRole(${u.id},this.value)" style="font-size:.75rem;padding:3px;border:1px solid #ddd;border-radius:4px">${['admin','reviewer','user'].map(r=>`<option value="${r}"${u.role===r?' selected':''}>${r}</option>`).join('')}</select>
             <button class="btn btn-sm ${u.active?'btn-danger':'btn-outline'}" onclick="adminToggleActive(${u.id},${u.active?0:1})">${u.active?'Disattiva':'Attiva'}</button>
           </div></td></tr>`).join('')}
-        </table></div>`;
-    }else if(currentAdminTab==='invites'){
-      const invites=await api('GET','/auth/invites');
-      el.innerHTML=`<div style="margin-bottom:20px"><div style="font-family:'Syne',sans-serif;font-weight:700;margin-bottom:10px">Genera invito</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <input class="form-input" id="invE" placeholder="Email destinatario (opzionale)" style="flex:2;min-width:200px">
-          <select class="form-select" id="invR" style="flex:1;min-width:120px"><option value="reviewer">reviewer</option><option value="user">user</option><option value="admin">admin</option></select>
-          <button class="btn btn-primary" onclick="adminCreateInvite()">Genera link</button>
-        </div><div id="inviteResult"></div></div>
-        <div style="overflow-x:auto"><table class="admin-table"><tr><th>Token</th><th>Ruolo</th><th>Email</th><th>Creato da</th><th>Usato</th><th>Scade</th></tr>
-        ${invites.map(i=>`<tr><td style="font-size:.7rem;font-family:'Space Mono',monospace">${i.token.slice(0,8)}…</td>
-          <td><span class="role-badge role-${i.role}">${i.role}</span></td>
-          <td style="font-size:.8rem">${i.email||'—'}</td><td style="font-size:.8rem">${esc(i.created_by_name||'—')}</td>
-          <td>${i.used_at?'✅ '+i.used_at.slice(0,10):'⏳ No'}</td>
-          <td style="font-size:.72rem;color:var(--gray)">${i.expires_at.slice(0,10)}</td></tr>`).join('')}
         </table></div>`;
     }else if(currentAdminTab==='reviews'){
       const reviews=await api('GET','/reviews');
@@ -577,7 +601,6 @@ async function approveReviewer(uid){try{await api('PUT','/users/'+uid+'/approve-
 async function denyReviewer(uid){try{await api('PUT','/users/'+uid+'/deny-reviewer');toast('Richiesta rifiutata');renderAdmin();}catch(e){toast('Errore: '+e.message);}}
 async function adminToggleActive(uid,active){try{await api('PUT','/users/'+uid+'/active',{active});renderAdmin();}catch(e){toast('Errore: '+e.message);}}
 async function adminCreateUser(){try{await api('POST','/users',{name:document.getElementById('adUN').value,email:document.getElementById('adUE').value,password:document.getElementById('adUP').value,role:document.getElementById('adUR').value});toast('Utente creato!');renderAdmin();}catch(e){toast('Errore: '+e.message);}}
-async function adminCreateInvite(){try{const data=await api('POST','/auth/invites',{email:document.getElementById('invE').value.trim()||null,role:document.getElementById('invR').value});document.getElementById('inviteResult').innerHTML=`<div class="invite-box"><strong>Link:</strong><br>${data.link}<br><br><strong>Token:</strong> ${data.token}<br><strong>Scade:</strong> ${data.expires_at.slice(0,10)}</div>`;renderAdmin();}catch(e){toast('Errore: '+e.message);}}
 async function adminDeleteReview(rid){if(!confirm('Eliminare?'))return;try{await api('DELETE','/reviews/'+rid);renderAdmin();toast('Eliminata');}catch(e){toast('Errore: '+e.message);}}
 async function adminDeleteRest(rid){if(!confirm('Rimuovere?'))return;try{await api('DELETE','/restaurants/'+rid);renderAdmin();toast('Rimosso');}catch(e){toast('Errore: '+e.message);}}
 async function adminAddRest(){const n=document.getElementById('adRN').value.trim(),p=document.getElementById('adRP').value.trim(),ph=document.getElementById('adRPh').value.trim();if(!n||!p)return;try{await api('POST','/restaurants',{name:n,place:p,phone:ph||null,tags:['menu fisso']});renderAdmin();toast('Aggiunto!');}catch(e){toast('Errore: '+e.message);}}
