@@ -155,10 +155,15 @@ nav{position:sticky;top:0;z-index:100;background:var(--dark);display:flex;align-
     </div>
   </div>
   <div id="reviewerBanner" style="padding:0 16px;margin-bottom:8px"></div>
+  <div id="badgeBanner" style="padding:0 16px;margin-bottom:8px"></div>
   <div class="section">
     <div class="section-title">Ultime recensioni</div>
     <div id="homeLatest"><div class="loading-wrap"><div class="spinner"></div></div></div>
     <button class="btn btn-outline" style="width:100%;margin-top:8px" onclick="showPage('list')">Vedi tutti i ristoranti →</button>
+  </div>
+  <div class="section">
+    <div class="section-title">Classifica recensori</div>
+    <div id="homeLeaderboard"><div class="loading-wrap"><div class="spinner"></div></div></div>
   </div>
 </div>
 
@@ -369,6 +374,40 @@ async function renderHome(){
         }
       }else{bannerEl.innerHTML='';}
     }
+    // Badge utente corrente
+    const badgeEl=document.getElementById('badgeBanner');
+    if(badgeEl){
+      if(currentUser&&['admin','reviewer'].includes(currentUser.role)){
+        try{
+          const bd=await api('GET','/users/me/badge');
+          if(bd.badge){
+            badgeEl.innerHTML=`<div style="background:linear-gradient(135deg,${bd.badge.color}22,${bd.badge.color}11);border:1px solid ${bd.badge.color};border-radius:10px;padding:14px;text-align:center">
+              <span style="font-size:1.8rem">${bd.badge.icon}</span>
+              <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1.1rem;margin:4px 0">Livello ${bd.badge.name}</div>
+              <div style="font-size:.82rem;color:var(--gray)">${bd.count} recensioni${bd.next?' — ancora '+(bd.next.remaining)+' per '+bd.next.icon+' '+bd.next.name:' — livello massimo raggiunto! 🎉'}</div>
+            </div>`;
+          }else if(bd.next){
+            badgeEl.innerHTML=`<div style="background:#f8f9fa;border:1px solid #dee2e6;border-radius:10px;padding:14px;text-align:center;font-size:.88rem">${bd.count} recension${bd.count===1?'e':'i'} — ancora ${bd.next.remaining} per il primo badge ${bd.next.icon} ${bd.next.name}</div>`;
+          }else{badgeEl.innerHTML='';}
+        }catch{badgeEl.innerHTML='';}
+      }else{badgeEl.innerHTML='';}
+    }
+    // Classifica recensori
+    try{
+      const lb=await api('GET','/users/leaderboard');
+      const lbEl=document.getElementById('homeLeaderboard');
+      if(lb.length){
+        lbEl.innerHTML=lb.map((r,i)=>{
+          const pos=i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'.';
+          const badge=r.badge?`<span style="font-size:.9rem" title="Livello ${r.badge.name}">${r.badge.icon}</span>`:'';
+          return`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;${i<3?'font-weight:700':''}${i>0?';border-top:1px solid #f0f0f0':''}">
+            <span style="font-size:1.1rem;min-width:28px;text-align:center">${pos}</span>
+            <span style="flex:1">${esc(r.name)} ${badge}</span>
+            <span style="font-family:'Space Mono',monospace;font-size:.85rem;color:var(--gray)">${r.review_count} rec.</span>
+          </div>`;
+        }).join('');
+      }else{lbEl.innerHTML='<div class="empty"><p>Nessuna recensione ancora</p></div>';}
+    }catch{}
   }catch{document.getElementById('homeLatest').innerHTML='<div class="empty"><p>Errore caricamento</p></div>';}
 }
 async function requestReviewer(){
