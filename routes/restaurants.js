@@ -76,6 +76,20 @@ router.post('/', authMiddleware, requireRole('admin', 'reviewer'), (req, res) =>
   res.status(201).json(rest);
 });
 
+// PATCH /api/restaurants/:id — aggiorna indirizzo/telefono (reviewer o admin)
+router.patch('/:id', authMiddleware, requireRole('admin', 'reviewer'), (req, res) => {
+  const { address, phone } = req.body;
+  const rest = db.prepare('SELECT * FROM restaurants WHERE id = ? AND active = 1').get(req.params.id);
+  if (!rest) return res.status(404).json({ error: 'Non trovato' });
+
+  db.prepare(`UPDATE restaurants SET address=?, phone=? WHERE id=?`).run(
+    address !== undefined ? (address || null) : rest.address,
+    phone !== undefined ? (phone || null) : rest.phone,
+    req.params.id
+  );
+  res.json({ message: 'Aggiornato' });
+});
+
 // PUT /api/restaurants/:id — solo admin
 router.put('/:id', authMiddleware, requireRole('admin'), (req, res) => {
   const { name, place, address, phone, tags, active } = req.body;
