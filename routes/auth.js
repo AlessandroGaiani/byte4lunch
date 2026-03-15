@@ -3,20 +3,10 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const rateLimit = require('express-rate-limit');
-const nodemailer = require('nodemailer');
 const db = require('../database');
 const { authMiddleware, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
-
-// ── Mailer ───────────────────────────────────────────────
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
 
 // Rate limit: max 5 tentativi di login ogni 15 minuti per IP
 const loginLimiter = rateLimit({
@@ -152,27 +142,6 @@ router.post('/invites', authMiddleware, requireRole('admin'), async (req, res) =
 
     const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
     const inviteLink = `${baseUrl}/?invite=${token}`;
-
-    // Invia email se è stata specificata un'email destinatario
-    if (email && process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
-      try {
-        await transporter.sendMail({
-          from: `"byte4lunch" <${process.env.GMAIL_USER}>`,
-          to: email,
-          subject: 'Sei stato invitato a byte4lunch!',
-          html: `
-            <h2>Benvenuto su byte4lunch 🍝</h2>
-            <p>Sei stato invitato a unirti alla piattaforma di recensioni di Omega Quarto d'Altino.</p>
-            <p>Clicca sul link qui sotto per registrarti (valido 7 giorni):</p>
-            <p><a href="${inviteLink}" style="background:#e85d04;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;">Accetta invito</a></p>
-            <p style="color:#888;font-size:12px;">Oppure copia questo link: ${inviteLink}</p>
-          `,
-        });
-      } catch (mailErr) {
-        console.error('Errore invio email:', mailErr.message);
-        // Non blocca la risposta: l'invito è comunque creato
-      }
-    }
 
     res.json({
       token,
