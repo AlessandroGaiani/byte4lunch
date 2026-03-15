@@ -3,11 +3,12 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
 
-// Assicura che la cartella data esista
-const dataDir = path.join(__dirname, 'data');
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);
+// Percorso DB configurabile via env var (utile per Render Disk o storage persistente)
+const dbPath = process.env.DB_PATH || path.join(__dirname, 'data', 'byte4lunch.db');
+const dataDir = path.dirname(dbPath);
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
-const db = new Database(path.join(dataDir, 'byte4lunch.db'));
+const db = new Database(dbPath);
 
 // Abilita WAL per performance migliori
 db.pragma('journal_mode = WAL');
@@ -87,19 +88,7 @@ function initDatabase() {
     console.log(`✅ Admin creato: ${adminEmail}`);
   }
 
-  // Dati demo iniziali
-  const restCount = db.prepare('SELECT COUNT(*) as c FROM restaurants').get().c;
-  if (restCount === 0) {
-    const adminId = db.prepare('SELECT id FROM users WHERE role = ? LIMIT 1').get('admin').id;
-    const insertRest = db.prepare(`
-      INSERT INTO restaurants (name, place, address, phone, tags, added_by)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    insertRest.run('Osteria Al Sole', "Quarto d'Altino", 'Via Roma 12', null, JSON.stringify(['menu fisso','pesce']), adminId);
-    insertRest.run('Trattoria Da Mario', 'Mestre', 'Corso del Popolo 44', null, JSON.stringify(['menu fisso','carne']), adminId);
-    insertRest.run('Il Boccone Felice', "Quarto d'Altino", 'Via Venezia 7', null, JSON.stringify(['menu fisso','vegan option']), adminId);
-    console.log('✅ Dati demo inseriti');
-  }
+  // Nessun dato demo: i dati reali vengono aggiunti dall'amministratore
 }
 
 initDatabase();
