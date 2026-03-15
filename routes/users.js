@@ -9,7 +9,7 @@ const router = express.Router();
 router.get('/', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const users = await db.all(
-      `SELECT id, name, email, role, active, created_at, last_login FROM users ORDER BY created_at DESC`
+      `SELECT id, name, email, role, role_request, active, created_at, last_login FROM users ORDER BY created_at DESC`
     );
     res.json(users);
   } catch (e) {
@@ -39,6 +39,46 @@ router.put('/:id/active', authMiddleware, requireRole('admin'), async (req, res)
     if (parseInt(req.params.id) === req.user.id) return res.status(400).json({ error: 'Non puoi disattivare te stesso' });
     await db.run('UPDATE users SET active = ? WHERE id = ?', [active ? 1 : 0, req.params.id]);
     res.json({ message: active ? 'Utente attivato' : 'Utente disattivato' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// POST /api/users/request-reviewer — utente chiede di diventare reviewer
+router.post('/request-reviewer', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role === 'reviewer' || req.user.role === 'admin') {
+      return res.status(400).json({ error: 'Sei già reviewer o admin' });
+    }
+    const user = await db.get('SELECT role_request FROM users WHERE id = ?', [req.user.id]);
+    if (user && user.role_request === 'pending') {
+      return res.status(400).json({ error: 'Hai già una richiesta in attesa' });
+    }
+    await db.run('UPDATE users SET role_request = ? WHERE id = ?', ['pending', req.user.id]);
+    res.json({ message: 'Richiesta inviata! L\'amministratore la esaminerà.' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// PUT /api/users/:id/approve-reviewer — admin approva richiesta
+router.put('/:id/approve-reviewer', authMiddleware, requireRole('admin'), async (req, res) => {
+  try {
+    await db.run('UPDATE users SET role = ?, role_request = NULL WHERE id = ?', ['reviewer', req.params.id]);
+    res.json({ message: 'Utente promosso a reviewer' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// PUT /api/users/:id/deny-reviewer — admin rifiuta richiesta
+router.put('/:id/deny-reviewer', authMiddleware, requireRole('admin'), async (req, res) => {
+  try {
+    await db.run('UPDATE users SET role_request = NULL WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Richiesta rifiutata' });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Errore interno del server' });
