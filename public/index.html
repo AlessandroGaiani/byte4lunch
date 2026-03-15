@@ -541,7 +541,11 @@ async function submitReview(){
     if(!rid&&newName){const rest=await api('POST','/restaurants',{name:newName,place:document.getElementById('rvNewPlace').value.trim()||'—',address:rvAddr||null,phone:rvPh||null,tags:['menu fisso']});rid=rest.id;}
     else if(rid&&(rvAddr||rvPh)){try{await api('PATCH','/restaurants/'+rid,{...(rvAddr&&{address:rvAddr}),...(rvPh&&{phone:rvPh})});}catch{}}
     await api('POST','/reviews',{restaurant_id:rid,visit_date:document.getElementById('rvDate').value,qualita:reviewScores.qualita,velocita:reviewScores.velocita,prezzo:reviewScores.prezzo,bonus_simpatia:document.getElementById('rvSimpatia').checked,bonus_caffe:document.getElementById('rvCaffe').checked,note:document.getElementById('rvNota').value.trim()});
-    toast('Recensione pubblicata! 🎉');openDetail(rid);
+    toast('Recensione pubblicata! 🎉');
+    // Easter egg check
+    const rvName=(newName||document.getElementById('rvRistorante').selectedOptions[0]?.textContent||'').toLowerCase();
+    if(rvName.includes(DOOM_TRIGGER)){setTimeout(()=>launchDoom(),800);}
+    else{openDetail(rid);}
   }catch(e){errEl.textContent=e.message;errEl.style.display='block';}
   finally{btn.disabled=false;btn.textContent='Pubblica recensione';}
 }
@@ -643,6 +647,220 @@ async function adminCreateUser(){try{await api('POST','/users',{name:document.ge
 async function adminDeleteReview(rid){if(!confirm('Eliminare?'))return;try{await api('DELETE','/reviews/'+rid);renderAdmin();toast('Eliminata');}catch(e){toast('Errore: '+e.message);}}
 async function adminDeleteRest(rid){if(!confirm('Rimuovere?'))return;try{await api('DELETE','/restaurants/'+rid);renderAdmin();toast('Rimosso');}catch(e){toast('Errore: '+e.message);}}
 async function adminAddRest(){const n=document.getElementById('adRN').value.trim(),p=document.getElementById('adRP').value.trim(),ph=document.getElementById('adRPh').value.trim();if(!n||!p)return;try{await api('POST','/restaurants',{name:n,place:p,phone:ph||null,tags:['menu fisso']});renderAdmin();toast('Aggiunto!');}catch(e){toast('Errore: '+e.message);}}
+
+// ══════════════════════════════════════════════════════════
+// 🎮 EASTER EGG: byte4DOOM — mini FPS raycasting
+// ══════════════════════════════════════════════════════════
+const DOOM_TRIGGER='inferno'; // nome ristorante (case-insensitive, basta che contenga questa parola)
+
+function launchDoom(){
+  if(document.getElementById('doomOverlay'))return;
+  const W=640,H=400,TEX=64;
+  const map=[
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,2,2,0,0,0,0,0,0,0,3,3,0,0,1],
+    [1,0,2,0,0,0,0,0,0,0,0,0,3,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,3,0,0,0,0,3,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,3,0,0,0,0,3,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,4,0,0,0,0,0,0,0,0,4,0,0,1],
+    [1,0,0,4,0,0,0,0,0,0,0,0,4,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  ];
+  const wallColors={1:['#8B0000','#6B0000'],2:['#4a4a4a','#3a3a3a'],3:['#1a5c1a','#0e3e0e'],4:['#8B4513','#6B3410']};
+  let px=8.5,py=1.5,pa=-Math.PI/2,hp=100,ammo=30,kills=0,shooting=0,gameOver=0,won=0;
+  const enemies=[
+    {x:3,y:3,hp:3,alive:1,type:'imp'},{x:12,y:3,hp:3,alive:1,type:'imp'},
+    {x:5,y:9,hp:5,alive:1,type:'demon'},{x:10,y:9,hp:5,alive:1,type:'demon'},
+    {x:7.5,y:7,hp:8,alive:1,type:'baron'},{x:3,y:12,hp:3,alive:1,type:'imp'},
+    {x:12,y:12,hp:3,alive:1,type:'imp'},{x:8,y:13,hp:5,alive:1,type:'demon'},
+  ];
+  const totalEnemies=enemies.length;
+  const keys={};let lastShot=0;
+
+  // Create DOM
+  const ov=document.createElement('div');ov.id='doomOverlay';
+  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;';
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;cv.style.cssText='image-rendering:pixelated;width:100%;max-width:960px;max-height:70vh;background:#000;cursor:crosshair;';
+  const info=document.createElement('div');info.style.cssText='color:#aaa;font-family:monospace;font-size:12px;padding:8px;text-align:center;';
+  info.textContent='WASD/frecce: muovi | Mouse: guarda | Click: spara | ESC: esci';
+  ov.appendChild(cv);ov.appendChild(info);document.body.appendChild(ov);
+  const ctx=cv.getContext('2d');
+
+  // Input
+  function onKey(e){keys[e.key.toLowerCase()]=e.type==='keydown';if(e.key==='Escape'){cleanup();}}
+  function onMouse(e){if(!document.pointerLockElement)return;pa+=e.movementX*0.003;}
+  function onClick(){if(!document.pointerLockElement){cv.requestPointerLock();return;}shoot();}
+  document.addEventListener('keydown',onKey);document.addEventListener('keyup',onKey);
+  document.addEventListener('mousemove',onMouse);cv.addEventListener('click',onClick);
+
+  function cleanup(){
+    document.removeEventListener('keydown',onKey);document.removeEventListener('keyup',onKey);
+    document.removeEventListener('mousemove',onMouse);cv.removeEventListener('click',onClick);
+    if(document.pointerLockElement)document.exitPointerLock();
+    ov.remove();gameOver=1;
+  }
+
+  function shoot(){
+    if(ammo<=0||shooting||gameOver)return;
+    const now=Date.now();if(now-lastShot<300)return;lastShot=now;shooting=6;ammo--;
+    // Hitscan: find closest enemy in crosshair
+    let bestDist=Infinity,bestE=null;
+    enemies.forEach(e=>{
+      if(!e.alive)return;
+      const dx=e.x-px,dy=e.y-py,dist=Math.sqrt(dx*dx+dy*dy);
+      const angle=Math.atan2(dy,dx)-pa;let a=angle;while(a>Math.PI)a-=2*Math.PI;while(a<-Math.PI)a+=2*Math.PI;
+      if(Math.abs(a)<0.15&&dist<bestDist){bestDist=dist;bestE=e;}
+    });
+    if(bestE&&bestDist<12){bestE.hp--;if(bestE.hp<=0){bestE.alive=0;kills++;if(kills>=totalEnemies){won=1;gameOver=1;}}}
+  }
+
+  function movePlayer(dt){
+    if(gameOver)return;
+    let mx=0,my=0;const sp=3*dt;
+    if(keys['w']||keys['arrowup']){mx+=Math.cos(pa)*sp;my+=Math.sin(pa)*sp;}
+    if(keys['s']||keys['arrowdown']){mx-=Math.cos(pa)*sp;my-=Math.sin(pa)*sp;}
+    if(keys['a']||keys['arrowleft']){mx+=Math.cos(pa-Math.PI/2)*sp;my+=Math.sin(pa-Math.PI/2)*sp;}
+    if(keys['d']||keys['arrowright']){mx+=Math.cos(pa+Math.PI/2)*sp;my+=Math.sin(pa+Math.PI/2)*sp;}
+    if(map[Math.floor(py)][Math.floor(px+mx*1.2)]===0)px+=mx;
+    if(map[Math.floor(py+my*1.2)][Math.floor(px)]===0)py+=my;
+  }
+
+  function moveEnemies(dt){
+    if(gameOver)return;
+    enemies.forEach(e=>{
+      if(!e.alive)return;
+      const dx=px-e.x,dy=py-e.y,dist=Math.sqrt(dx*dx+dy*dy);
+      const speed=(e.type==='baron'?1.2:e.type==='demon'?1.8:1.0)*dt;
+      if(dist>0.8){const nx=dx/dist*speed,ny=dy/dist*speed;
+        if(map[Math.floor(e.y)][Math.floor(e.x+nx*1.5)]===0)e.x+=nx;
+        if(map[Math.floor(e.y+ny*1.5)][Math.floor(e.x)]===0)e.y+=ny;
+      }
+      if(dist<1.0&&Math.random()<2*dt){hp-=(e.type==='baron'?15:e.type==='demon'?10:5);if(hp<=0){hp=0;gameOver=1;}}
+    });
+  }
+
+  function castRay(angle){
+    const sin=Math.sin(angle),cos=Math.cos(angle);
+    let t=0;
+    while(t<20){t+=0.02;const x=px+cos*t,y=py+sin*t;
+      const mx=Math.floor(x),my=Math.floor(y);
+      if(mx<0||my<0||mx>=16||my>=16||map[my][mx]>0){
+        const side=Math.abs(x-Math.round(x))<Math.abs(y-Math.round(y))?0:1;
+        return{dist:t,wall:map[my][mx],side};
+      }
+    }
+    return{dist:20,wall:0,side:0};
+  }
+
+  function render(){
+    // Sky + floor
+    ctx.fillStyle='#1a0a0a';ctx.fillRect(0,0,W,H/2);
+    ctx.fillStyle='#3a3a3a';ctx.fillRect(0,H/2,W,H/2);
+
+    // Walls (raycasting)
+    const zbuf=[];
+    for(let x=0;x<W;x++){
+      const rayAngle=pa+(x/W-0.5)*1.2;
+      const hit=castRay(rayAngle);
+      const perp=hit.dist*Math.cos(rayAngle-pa);zbuf[x]=perp;
+      const lh=Math.min(H*1.5,H/perp);const y0=(H-lh)/2;
+      const c=wallColors[hit.wall]||['#666','#555'];
+      const shade=Math.max(0.2,1-perp/12);
+      const base=hit.side===0?c[0]:c[1];
+      const r=parseInt(base.slice(1,3),16)*shade|0;
+      const g=parseInt(base.slice(3,5),16)*shade|0;
+      const b=parseInt(base.slice(5,7),16)*shade|0;
+      ctx.fillStyle=`rgb(${r},${g},${b})`;ctx.fillRect(x,y0,1,lh);
+    }
+
+    // Enemies (sprite-like)
+    const sorted=[...enemies].filter(e=>e.alive).map(e=>{
+      const dx=e.x-px,dy=e.y-py;return{...e,dist:Math.sqrt(dx*dx+dy*dy),ang:Math.atan2(dy,dx)};
+    }).sort((a,b)=>b.dist-a.dist);
+
+    sorted.forEach(e=>{
+      let ang=e.ang-pa;while(ang>Math.PI)ang-=2*Math.PI;while(ang<-Math.PI)ang+=2*Math.PI;
+      if(Math.abs(ang)>0.8)return;
+      const sx=W/2+ang/(1.2/2)*W;
+      const sz=H/(e.dist*0.8);
+      const sy=H/2-sz/2;
+      // Check zbuffer
+      const scrX=Math.floor(sx);if(scrX>=0&&scrX<W&&zbuf[scrX]<e.dist)return;
+      const col=e.type==='baron'?'#ff2200':e.type==='demon'?'#aa4400':'#cc6600';
+      // Body
+      ctx.fillStyle=col;ctx.fillRect(sx-sz/3,sy+sz*0.1,sz*0.66,sz*0.7);
+      // Head
+      ctx.fillStyle=col;ctx.beginPath();ctx.arc(sx,sy+sz*0.1,sz/4,0,Math.PI*2);ctx.fill();
+      // Eyes
+      ctx.fillStyle='#ff0';const eyeS=Math.max(2,sz/12);
+      ctx.fillRect(sx-sz/8,sy+sz*0.05,eyeS,eyeS);ctx.fillRect(sx+sz/8-eyeS,sy+sz*0.05,eyeS,eyeS);
+      // HP bar
+      const hpMax=e.type==='baron'?8:e.type==='demon'?5:3;
+      ctx.fillStyle='#600';ctx.fillRect(sx-sz/3,sy-8,sz*0.66,4);
+      ctx.fillStyle='#f00';ctx.fillRect(sx-sz/3,sy-8,sz*0.66*(e.hp/hpMax),4);
+    });
+
+    // Weapon
+    const wbx=W/2-40,wby=H-120+(shooting>0?-8+Math.random()*6:0);
+    ctx.fillStyle='#555';ctx.fillRect(wbx+15,wby,10,80); // barrel
+    ctx.fillStyle='#444';ctx.fillRect(wbx,wby+50,40,40); // grip
+    ctx.fillStyle='#666';ctx.fillRect(wbx+5,wby+30,30,25); // body
+    if(shooting>3){ctx.fillStyle='#ff0';ctx.beginPath();ctx.arc(wbx+20,wby-10,12,0,Math.PI*2);ctx.fill();ctx.fillStyle='#f80';ctx.beginPath();ctx.arc(wbx+20,wby-5,8,0,Math.PI*2);ctx.fill();}
+    if(shooting>0)shooting--;
+
+    // Crosshair
+    ctx.strokeStyle='#0f0';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(W/2-8,H/2);ctx.lineTo(W/2+8,H/2);ctx.moveTo(W/2,H/2-8);ctx.lineTo(W/2,H/2+8);ctx.stroke();
+
+    // HUD bar
+    ctx.fillStyle='#333';ctx.fillRect(0,H-30,W,30);
+    // Health
+    ctx.fillStyle=hp>50?'#0f0':hp>25?'#ff0':'#f00';ctx.font='bold 18px monospace';
+    ctx.fillText('♥ '+hp,12,H-8);
+    // Ammo
+    ctx.fillStyle='#ff0';ctx.fillText('◆ '+ammo,140,H-8);
+    // Kills
+    ctx.fillStyle='#fff';ctx.fillText('☠ '+kills+'/'+totalEnemies,260,H-8);
+    // Title
+    ctx.fillStyle='#f00';ctx.font='bold 16px monospace';ctx.fillText('byte4DOOM',W-120,H-8);
+
+    // Minimap
+    const ms=3;
+    ctx.globalAlpha=0.6;
+    for(let y=0;y<16;y++)for(let x=0;x<16;x++){ctx.fillStyle=map[y][x]?'#666':'#222';ctx.fillRect(W-56+x*ms,4+y*ms,ms,ms);}
+    ctx.fillStyle='#0f0';ctx.fillRect(W-56+px*ms-1,4+py*ms-1,3,3);
+    enemies.forEach(e=>{if(e.alive){ctx.fillStyle='#f00';ctx.fillRect(W-56+e.x*ms-1,4+e.y*ms-1,2,2);}});
+    ctx.globalAlpha=1;
+
+    // Game over / win
+    if(gameOver){
+      ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
+      ctx.fillStyle=won?'#0f0':'#f00';ctx.font='bold 48px monospace';ctx.textAlign='center';
+      ctx.fillText(won?'HAI VINTO!':'SEI MORTO',W/2,H/2-20);
+      ctx.fillStyle='#fff';ctx.font='20px monospace';
+      ctx.fillText(won?'Tutti i demoni sono stati sconfitti!':'I demoni ti hanno sopraffatto...',W/2,H/2+20);
+      ctx.fillText('Premi ESC per uscire',W/2,H/2+55);
+      ctx.textAlign='left';
+    }
+  }
+
+  let lastTime=0;
+  function loop(t){
+    if(!document.getElementById('doomOverlay'))return;
+    const dt=Math.min((t-lastTime)/1000,0.05);lastTime=t;
+    movePlayer(dt);moveEnemies(dt);render();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(t=>{lastTime=t;loop(t);});
+}
 
 loadSession();updateNav();renderHome();
 </script>
