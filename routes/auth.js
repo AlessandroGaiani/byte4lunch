@@ -15,123 +15,159 @@ const loginLimiter = rateLimit({
   message: { error: 'Troppi tentativi di accesso. Riprova tra 15 minuti.' },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: {xForwardedForHeader: false},
+  validate: { xForwardedForHeader: false },
 });
 
 // POST /api/auth/login
-router.post('/login', loginLimiter, (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email e password richieste' });
+router.post('/login', loginLimiter, async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email e password richieste' });
 
-  const user = db.prepare('SELECT * FROM users WHERE email = ? AND active = 1').get(email.toLowerCase().trim());
-  if (!user) return res.status(401).json({ error: 'Credenziali non valide' });
+    const user = await db.get('SELECT * FROM users WHERE email = ? AND active = 1', [email.toLowerCase().trim()]);
+    if (!user) return res.status(401).json({ error: 'Credenziali non valide' });
 
-  const valid = bcrypt.compareSync(password, user.password_hash);
-  if (!valid) return res.status(401).json({ error: 'Credenziali non valide' });
+    const valid = bcrypt.compareSync(password, user.password_hash);
+    if (!valid) return res.status(401).json({ error: 'Credenziali non valide' });
 
-  db.prepare(`UPDATE users SET last_login = datetime('now') WHERE id = ?`).run(user.id);
+    await db.run(`UPDATE users SET last_login = datetime('now') WHERE id = ?`, [user.id]);
 
-  const token = jwt.sign(
-    { id: user.id, name: user.name, email: user.email, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-  );
+    const token = jwt.sign(
+      { id: user.id, name: user.name, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
 
-  res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
 });
 
 // POST /api/auth/register (solo con invite token)
-router.post('/register', (req, res) => {
-  const { name, email, password, invite_token } = req.body;
-  if (!name || !email || !password || !invite_token) {
-    return res.status(400).json({ error: 'Tutti i campi sono obbligatori' });
+router.post('/register', async (req, res) => {
+  try {
+    const { name, email, password, invite_token } = req.body;
+    if (!name || !email || !password || !invite_token) {
+      return res.status(400).json({ error: 'Tutti i campi sono obbligatori' });
+    }
+    if (password.length < 8) return res.status(400).json({ error: 'Password minimo 8 caratteri' });
+
+    const invite = await db.get(`
+      SELECT * FROM invite_tokens
+      WHERE token = ? AND used_at IS NULL AND expires_at > datetime('now')
+    `, [invite_token]);
+
+    if (!invite) return res.status(400).json({ error: 'Token invito non valido o scaduto' });
+    if (invite.email && invite.email !== email.toLowerCase().trim()) {
+      return res.status(400).json({ error: "Questo invito è per un'altra email" });
+    }
+
+    const existing = await db.get('SELECT id FROM users WHERE email = ?', [email.toLowerCase().trim()]);
+    if (existing) return res.status(409).json({ error: 'Email già registrata' });
+
+    const hash = bcrypt.hashSync(password, 12);
+    const result = await db.run(
+      `INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)`,
+      [name.trim(), email.toLowerCase().trim(), hash, invite.role]
+    );
+
+    await db.run(`UPDATE invite_tokens SET used_at = datetime('now') WHERE id = ?`, [invite.id]);
+
+    const user = await db.get('SELECT id, name, email, role FROM users WHERE id = ?', [result.lastInsertRowid]);
+    const token = jwt.sign(
+      { id: user.id, name: user.name, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+
+    res.status(201).json({ token, user });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Errore interno del server' });
   }
-  if (password.length < 8) return res.status(400).json({ error: 'Password minimo 8 caratteri' });
-
-  const invite = db.prepare(`
-    SELECT * FROM invite_tokens
-    WHERE token = ? AND used_at IS NULL AND expires_at > datetime('now')
-  `).get(invite_token);
-
-  if (!invite) return res.status(400).json({ error: 'Token invito non valido o scaduto' });
-  if (invite.email && invite.email !== email.toLowerCase().trim()) {
-    return res.status(400).json({ error: 'Questo invito è per un\'altra email' });
-  }
-
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase().trim());
-  if (existing) return res.status(409).json({ error: 'Email già registrata' });
-
-  const hash = bcrypt.hashSync(password, 12);
-  const result = db.prepare(`
-    INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)
-  `).run(name.trim(), email.toLowerCase().trim(), hash, invite.role);
-
-  db.prepare(`UPDATE invite_tokens SET used_at = datetime('now') WHERE id = ?`).run(invite.id);
-
-  const user = db.prepare('SELECT id, name, email, role FROM users WHERE id = ?').get(result.lastInsertRowid);
-  const token = jwt.sign(
-    { id: user.id, name: user.name, email: user.email, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-  );
-
-  res.status(201).json({ token, user });
 });
 
 // GET /api/auth/me
-router.get('/me', authMiddleware, (req, res) => {
-  const user = db.prepare('SELECT id, name, email, role, created_at, last_login FROM users WHERE id = ?').get(req.user.id);
-  res.json(user);
+router.get('/me', authMiddleware, async (req, res) => {
+  try {
+    const user = await db.get(
+      'SELECT id, name, email, role, created_at, last_login FROM users WHERE id = ?',
+      [req.user.id]
+    );
+    res.json(user);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
 });
 
 // POST /api/auth/change-password
-router.post('/change-password', authMiddleware, (req, res) => {
-  const { current_password, new_password } = req.body;
-  if (!current_password || !new_password) return res.status(400).json({ error: 'Campi mancanti' });
-  if (new_password.length < 8) return res.status(400).json({ error: 'Nuova password minimo 8 caratteri' });
+router.post('/change-password', authMiddleware, async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+    if (!current_password || !new_password) return res.status(400).json({ error: 'Campi mancanti' });
+    if (new_password.length < 8) return res.status(400).json({ error: 'Nuova password minimo 8 caratteri' });
 
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-  if (!bcrypt.compareSync(current_password, user.password_hash)) {
-    return res.status(401).json({ error: 'Password attuale non corretta' });
+    const user = await db.get('SELECT * FROM users WHERE id = ?', [req.user.id]);
+    if (!bcrypt.compareSync(current_password, user.password_hash)) {
+      return res.status(401).json({ error: 'Password attuale non corretta' });
+    }
+
+    await db.run(
+      'UPDATE users SET password_hash = ? WHERE id = ?',
+      [bcrypt.hashSync(new_password, 12), req.user.id]
+    );
+    res.json({ message: 'Password aggiornata' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Errore interno del server' });
   }
-
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
-    .run(bcrypt.hashSync(new_password, 12), req.user.id);
-  res.json({ message: 'Password aggiornata' });
 });
 
 // ── ADMIN: gestione inviti ──────────────────────────────────────────
 
 // POST /api/auth/invites  (solo admin)
-router.post('/invites', authMiddleware, requireRole('admin'), (req, res) => {
-  const { email, role } = req.body;
-  const token = uuidv4();
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 giorni
+router.post('/invites', authMiddleware, requireRole('admin'), async (req, res) => {
+  try {
+    const { email, role } = req.body;
+    const token = uuidv4();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  db.prepare(`
-    INSERT INTO invite_tokens (token, role, email, created_by, expires_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(token, role || 'reviewer', email || null, req.user.id, expiresAt);
+    await db.run(
+      `INSERT INTO invite_tokens (token, role, email, created_by, expires_at) VALUES (?, ?, ?, ?, ?)`,
+      [token, role || 'reviewer', email || null, req.user.id, expiresAt]
+    );
 
-  const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
-  res.json({
-    token,
-    link: `${baseUrl}/?invite=${token}`,
-    expires_at: expiresAt,
-    role: role || 'reviewer'
-  });
+    const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+    res.json({
+      token,
+      link: `${baseUrl}/?invite=${token}`,
+      expires_at: expiresAt,
+      role: role || 'reviewer'
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
 });
 
 // GET /api/auth/invites (solo admin)
-router.get('/invites', authMiddleware, requireRole('admin'), (req, res) => {
-  const invites = db.prepare(`
-    SELECT i.*, u.name as created_by_name
-    FROM invite_tokens i
-    LEFT JOIN users u ON i.created_by = u.id
-    ORDER BY i.created_at DESC
-    LIMIT 50
-  `).all();
-  res.json(invites);
+router.get('/invites', authMiddleware, requireRole('admin'), async (req, res) => {
+  try {
+    const invites = await db.all(`
+      SELECT i.*, u.name as created_by_name
+      FROM invite_tokens i
+      LEFT JOIN users u ON i.created_by = u.id
+      ORDER BY i.created_at DESC
+      LIMIT 50
+    `);
+    res.json(invites);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
 });
 
 module.exports = router;
