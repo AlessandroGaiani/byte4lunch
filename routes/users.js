@@ -91,6 +91,10 @@ router.post('/', authMiddleware, requireRole('admin'), async (req, res) => {
     const { name, email, password, role } = req.body;
     if (!name || !email || !password) return res.status(400).json({ error: 'Campi mancanti' });
     if (password.length < 8) return res.status(400).json({ error: 'Password minimo 8 caratteri' });
+    if (!/[A-Z]/.test(password)) return res.status(400).json({ error: 'La password deve contenere almeno una maiuscola' });
+    if (!/[a-z]/.test(password)) return res.status(400).json({ error: 'La password deve contenere almeno una minuscola' });
+    if (!/[0-9]/.test(password)) return res.status(400).json({ error: 'La password deve contenere almeno un numero' });
+    if (!/[^A-Za-z0-9]/.test(password)) return res.status(400).json({ error: 'La password deve contenere almeno un carattere speciale' });
 
     const existing = await db.get('SELECT id FROM users WHERE email = ?', [email.toLowerCase().trim()]);
     if (existing) return res.status(409).json({ error: 'Email già registrata' });
