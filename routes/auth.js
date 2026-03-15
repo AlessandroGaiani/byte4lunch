@@ -15,6 +15,7 @@ const loginLimiter = rateLimit({
   message: { error: 'Troppi tentativi di accesso. Riprova tra 15 minuti.' },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: {xForwardedForHeader: false},
 });
 
 // POST /api/auth/login
