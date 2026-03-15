@@ -63,13 +63,13 @@ router.get('/:id', (req, res) => {
 
 // POST /api/restaurants — reviewer o admin
 router.post('/', authMiddleware, requireRole('admin', 'reviewer'), (req, res) => {
-  const { name, place, address, tags } = req.body;
+  onst { name, place, address, phone, tags } = req.body;
   if (!name || !place) return res.status(400).json({ error: 'Nome e luogo obbligatori' });
 
   const result = db.prepare(`
-    INSERT INTO restaurants (name, place, address, tags, added_by)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(name.trim(), place.trim(), address || null, JSON.stringify(tags || ['menu fisso']), req.user.id);
+    INSERT INTO restaurants (name, place, address, phone, tags, added_by)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(name.trim(), place.trim(), address || null, phone || null, JSON.stringify(tags || ['menu fisso']), req.user.id);
 
   const rest = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(result.lastInsertRowid);
   try { rest.tags = JSON.parse(rest.tags); } catch { rest.tags = []; }
@@ -78,16 +78,17 @@ router.post('/', authMiddleware, requireRole('admin', 'reviewer'), (req, res) =>
 
 // PUT /api/restaurants/:id — solo admin
 router.put('/:id', authMiddleware, requireRole('admin'), (req, res) => {
-  const { name, place, address, tags, active } = req.body;
+  const { name, place, address, phone, tags, active } = req.body;
   const rest = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
   if (!rest) return res.status(404).json({ error: 'Non trovato' });
 
   db.prepare(`
-    UPDATE restaurants SET name=?, place=?, address=?, tags=?, active=? WHERE id=?
+    UPDATE restaurants SET name=?, place=?, address=?, phone=?, tags=?, active=? WHERE id=?
   `).run(
     name || rest.name,
     place || rest.place,
     address !== undefined ? address : rest.address,
+    phone !== undefined ? phone : rest.phone,
     JSON.stringify(tags || JSON.parse(rest.tags || '[]')),
     active !== undefined ? (active ? 1 : 0) : rest.active,
     req.params.id
