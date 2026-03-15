@@ -42,6 +42,7 @@ function initDatabase() {
       name TEXT NOT NULL,
       place TEXT NOT NULL,
       address TEXT,
+      phone TEXT,
       tags TEXT DEFAULT '[]',
       added_by INTEGER REFERENCES users(id),
       active INTEGER NOT NULL DEFAULT 1,
@@ -91,12 +92,12 @@ function initDatabase() {
   if (restCount === 0) {
     const adminId = db.prepare('SELECT id FROM users WHERE role = ? LIMIT 1').get('admin').id;
     const insertRest = db.prepare(`
-      INSERT INTO restaurants (name, place, address, tags, added_by)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO restaurants (name, place, address, phone, tags, added_by)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
-    insertRest.run('Osteria Al Sole', "Quarto d'Altino", 'Via Roma 12', JSON.stringify(['menu fisso','pesce']), adminId);
-    insertRest.run('Trattoria Da Mario', 'Mestre', 'Corso del Popolo 44', JSON.stringify(['menu fisso','carne']), adminId);
-    insertRest.run('Il Boccone Felice', "Quarto d'Altino", 'Via Venezia 7', JSON.stringify(['menu fisso','vegan option']), adminId);
+    insertRest.run('Osteria Al Sole', "Quarto d'Altino", 'Via Roma 12', null, JSON.stringify(['menu fisso','pesce']), adminId);
+    insertRest.run('Trattoria Da Mario', 'Mestre', 'Corso del Popolo 44', null, JSON.stringify(['menu fisso','carne']), adminId);
+    insertRest.run('Il Boccone Felice', "Quarto d'Altino", 'Via Venezia 7', null, JSON.stringify(['menu fisso','vegan option']), adminId);
     console.log('✅ Dati demo inseriti');
   }
 }
