@@ -63,7 +63,7 @@ router.get('/:id', (req, res) => {
 
 // POST /api/restaurants — reviewer o admin
 router.post('/', authMiddleware, requireRole('admin', 'reviewer'), (req, res) => {
-  onst { name, place, address, phone, tags } = req.body;
+  const { name, place, address, phone, tags } = req.body;
   if (!name || !place) return res.status(400).json({ error: 'Nome e luogo obbligatori' });
 
   const result = db.prepare(`
