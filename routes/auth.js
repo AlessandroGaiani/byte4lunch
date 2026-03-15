@@ -8,6 +8,16 @@ const { authMiddleware, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Validazione password complessa
+function validatePassword(pwd) {
+  if (pwd.length < 8) return 'Minimo 8 caratteri';
+  if (!/[A-Z]/.test(pwd)) return 'Deve contenere almeno una lettera maiuscola';
+  if (!/[a-z]/.test(pwd)) return 'Deve contenere almeno una lettera minuscola';
+  if (!/[0-9]/.test(pwd)) return 'Deve contenere almeno un numero';
+  if (!/[^A-Za-z0-9]/.test(pwd)) return 'Deve contenere almeno un carattere speciale (!@#$%...)';
+  return null;
+}
+
 // Rate limit: max 5 tentativi di login ogni 15 minuti per IP
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -52,7 +62,8 @@ router.post('/register', async (req, res) => {
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Nome, email e password sono obbligatori' });
     }
-    if (password.length < 8) return res.status(400).json({ error: 'Password minimo 8 caratteri' });
+    const pwdErr = validatePassword(password);
+    if (pwdErr) return res.status(400).json({ error: pwdErr });
 
     const existing = await db.get('SELECT id FROM users WHERE email = ?', [email.toLowerCase().trim()]);
     if (existing) return res.status(409).json({ error: 'Email già registrata' });
@@ -96,7 +107,8 @@ router.post('/change-password', authMiddleware, async (req, res) => {
   try {
     const { current_password, new_password } = req.body;
     if (!current_password || !new_password) return res.status(400).json({ error: 'Campi mancanti' });
-    if (new_password.length < 8) return res.status(400).json({ error: 'Nuova password minimo 8 caratteri' });
+    const pwdErr = validatePassword(new_password);
+    if (pwdErr) return res.status(400).json({ error: pwdErr });
 
     const user = await db.get('SELECT * FROM users WHERE id = ?', [req.user.id]);
     if (!bcrypt.compareSync(current_password, user.password_hash)) {
