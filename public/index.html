@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>byte4lunch</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231a1a18'/%3E%3Cpath d='M50 8C26.8 8 8 26.8 8 50S26.8 92 50 92 92 73.2 92 50C92 38.7 87.4 28.4 79.9 21' stroke='%236BBF3E' stroke-width='9' stroke-linecap='round' fill='none'/%3E%3Cpath d='M50 22C33.4 22 20 35.4 20 52S33.4 82 50 82 80 66.6 80 52C80 44 76.8 36.7 71.5 31.4' stroke='%236BBF3E' stroke-width='8' stroke-linecap='round' fill='none'/%3E%3Cpath d='M50 36C41.7 36 35 42.7 35 51S41.7 66 50 66 65 59.3 65 51C65 46.9 63.3 43.2 60.5 40.5' stroke='%236BBF3E' stroke-width='7' stroke-linecap='round' fill='none'/%3E%3Ccircle cx='50' cy='51' r='5.5' fill='%236BBF3E'/%3E%3C/svg%3E">
+<title>byte4lunch — Il pranzo dei pro</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231a1a18'/%3E%3Cpath d='M50 8C26.8 8 8 26.8 8 50S26.8 92 50 92 92 73.2 92 50C92 38.7 87.4 28.4 79.9 21' stroke='%236BBF3E' stroke-width='9' stroke-linecap='round' fill='none'/%3E%3Cpath d='M50 22C33.4 22 20 35.4 20 52S33.4 82 50 82 80 68.6 80 52C80 44 76.8 36.7 71.5 31.4' stroke='%236BBF3E' stroke-width='8' stroke-linecap='round' fill='none'/%3E%3Cpath d='M50 36C41.7 36 35 42.7 35 51S41.7 66 50 66 65 59.3 65 51C65 46.9 63.3 43.2 60.5 40.5' stroke='%236BBF3E' stroke-width='7' stroke-linecap='round' fill='none'/%3E%3Ccircle cx='50' cy='51' r='5.5' fill='%236BBF3E'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -368,6 +368,7 @@ async function openDetail(id){
     const r=await api('GET','/restaurants/'+id);
     document.getElementById('detailName').textContent=r.name;
     document.getElementById('detailPlace').textContent=`📍 ${r.place}${r.address?', '+r.address:''}`;
+    // Telefono + link mappe
     const mapsQuery=encodeURIComponent(`${r.name} ${r.address||''} ${r.place}`);
     const googleUrl=`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
     const appleUrl=`https://maps.apple.com/?q=${mapsQuery}`;
@@ -519,7 +520,7 @@ async function renderAdmin(){
           <button class="btn btn-primary" onclick="adminAddRest()">Aggiungi</button>
         </div></div>
         <div style="overflow-x:auto"><table class="admin-table"><tr><th>Nome</th><th>Luogo</th><th>Telefono</th><th>Recensioni</th><th></th></tr>
-        ${rests.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.place)}</td><td style="font-size:.8rem">${r.phone?<a href="tel:${esc(r.phone)}">${esc(r.phone)}</a>:'—'}</td><td>${r.review_count}</td>
+        ${rests.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.place)}</td><td style="font-size:.8rem">${r.phone?`<a href="tel:${esc(r.phone)}">${esc(r.phone)}</a>`:'—'}</td><td>${r.review_count}</td>
           <td><button class="btn btn-danger btn-sm" onclick="adminDeleteRest(${r.id})">Rimuovi</button></td></tr>`).join('')}
         </table></div>`;
     }
