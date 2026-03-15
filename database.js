@@ -1,21 +1,31 @@
-const Database = require('better-sqlite3');
+const { createClient } = require('@libsql/client');
 const bcrypt = require('bcryptjs');
-const path = require('path');
-const fs = require('fs');
 
-// Percorso DB configurabile via env var (utile per Render Disk o storage persistente)
-const dbPath = process.env.DB_PATH || path.join(__dirname, 'data', 'byte4lunch.db');
-const dataDir = path.dirname(dbPath);
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+const db = createClient({
+  url: process.env.TURSO_DATABASE_URL,
+  authToken: process.env.TURSO_AUTH_TOKEN,
+});
 
-const db = new Database(dbPath);
+// Helper: restituisce tutte le righe
+async function all(sql, params = []) {
+  const result = await db.execute({ sql, args: params });
+  return result.rows;
+}
 
-// Abilita WAL per performance migliori
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+// Helper: restituisce la prima riga o null
+async function get(sql, params = []) {
+  const result = await db.execute({ sql, args: params });
+  return result.rows[0] || null;
+}
 
-function initDatabase() {
-  db.exec(`
+// Helper: esegue INSERT/UPDATE/DELETE, restituisce { lastInsertRowid }
+async function run(sql, params = []) {
+  const result = await db.execute({ sql, args: params });
+  return { lastInsertRowid: Number(result.lastInsertRowid) };
+}
+
+async function initDatabase() {
+  await db.executeMultiple(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -78,18 +88,15 @@ function initDatabase() {
 
   // Crea admin iniziale se non esiste
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@omega.it';
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(adminEmail);
+  const existing = await get('SELECT id FROM users WHERE email = ?', [adminEmail]);
   if (!existing) {
     const hash = bcrypt.hashSync(process.env.ADMIN_PASSWORD || 'CambiaSubito2024!', 12);
-    db.prepare(`
-      INSERT INTO users (name, email, password_hash, role)
-      VALUES (?, ?, ?, 'admin')
-    `).run(process.env.ADMIN_NAME || 'Amministratore', adminEmail, hash);
+    await run(
+      `INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'admin')`,
+      [process.env.ADMIN_NAME || 'Amministratore', adminEmail, hash]
+    );
     console.log(`✅ Admin creato: ${adminEmail}`);
   }
-
-  // Nessun dato demo: i dati reali vengono aggiunti dall'amministratore
 }
 
-initDatabase();
-module.exports = db;
+module.exports = { all, get, run, initDatabase };
