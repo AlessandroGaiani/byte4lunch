@@ -29,7 +29,7 @@ router.post('/login', loginLimiter, (req, res) => {
   const valid = bcrypt.compareSync(password, user.password_hash);
   if (!valid) return res.status(401).json({ error: 'Credenziali non valide' });
 
-  db.prepare('UPDATE users SET last_login = datetime('now') WHERE id = ?').run(user.id);
+  db.prepare(`UPDATE users SET last_login = datetime('now') WHERE id = ?`).run(user.id);
 
   const token = jwt.sign(
     { id: user.id, name: user.name, email: user.email, role: user.role },
@@ -66,7 +66,7 @@ router.post('/register', (req, res) => {
     INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)
   `).run(name.trim(), email.toLowerCase().trim(), hash, invite.role);
 
-  db.prepare('UPDATE invite_tokens SET used_at = datetime('now') WHERE id = ?').run(invite.id);
+  db.prepare(`UPDATE invite_tokens SET used_at = datetime('now') WHERE id = ?`).run(invite.id);
 
   const user = db.prepare('SELECT id, name, email, role FROM users WHERE id = ?').get(result.lastInsertRowid);
   const token = jwt.sign(
