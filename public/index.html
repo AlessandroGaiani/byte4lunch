@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>byte4lunch — Il pranzo dei pro</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231a1a18'/%3E%3Cpath d='M50 8C26.8 8 8 26.8 8 50S26.8 92 50 92 92 73.2 92 50C92 38.7 87.4 28.4 79.9 21' stroke='%236BBF3E' stroke-width='9' stroke-linecap='round' fill='none'/%3E%3Cpath d='M50 22C33.4 22 20 35.4 20 52S33.4 82 50 82 80 68.6 80 52C80 44 76.8 36.7 71.5 31.4' stroke='%236BBF3E' stroke-width='8' stroke-linecap='round' fill='none'/%3E%3Cpath d='M50 36C41.7 36 35 42.7 35 51S41.7 66 50 66 65 59.3 65 51C65 46.9 63.3 43.2 60.5 40.5' stroke='%236BBF3E' stroke-width='7' stroke-linecap='round' fill='none'/%3E%3Ccircle cx='50' cy='51' r='5.5' fill='%236BBF3E'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -170,6 +172,7 @@ nav{position:sticky;top:0;z-index:100;background:var(--dark);display:flex;align-
 <!-- LIST -->
 <div class="page" id="page-list">
   <div class="filter-bar" id="filterBar"></div>
+  <div id="mapWrap" style="height:280px;border-radius:12px;overflow:hidden;margin:0 16px 12px;border:2px solid var(--border)"></div>
   <div class="section">
     <div class="section-title">Tutti i ristoranti</div>
     <div id="listCards"><div class="loading-wrap"><div class="spinner"></div></div></div>
@@ -343,7 +346,7 @@ function showPage(name){
   window.scrollTo(0,0);
   document.getElementById('navActions').classList.remove('open');
   if(name==='home')renderHome();
-  if(name==='list')renderList();
+  if(name==='list'){renderList();setTimeout(()=>{if(listMap)listMap.invalidateSize();},200);}
   if(name==='newReview')renderNewReview();
   if(name==='admin'){currentAdminTab='users';document.querySelectorAll('.admin-tab').forEach((t,i)=>t.classList.toggle('active',i===0));renderAdmin();}
   if(name==='login'){showLogin();checkInviteParam();}
@@ -415,6 +418,7 @@ async function requestReviewer(){
 }
 function goSearch(){showPage('list');}
 
+let listMap=null,listMarkers=null;
 async function renderList(){
   document.getElementById('listCards').innerHTML='<div class="loading-wrap"><div class="spinner"></div></div>';
   try{
@@ -428,24 +432,89 @@ async function renderList(){
     if(!nearMeMode&&currentFilter!=='all')ps.push('place='+encodeURIComponent(currentFilter));
     if(ps.length)url+='?'+ps.join('&');
     let data=await api('GET',url);
-    if(nearMeMode&&userCoords){
-      // Geocodifica i luoghi e aggiungi distanza
-      const geoData=await Promise.all(data.map(async r=>{
-        const place=r.address||r.place;
+
+    // Geocodifica ristoranti senza coordinate salvate
+    const geoData=await Promise.all(data.map(async r=>{
+      let lat=r.lat,lng=r.lng;
+      if(!lat||!lng){
+        const place=r.address?r.address+', '+r.place:r.name+', '+r.place;
         const coords=await geocodePlace(place);
-        const dist=coords?haversine(userCoords.lat,userCoords.lon,coords.lat,coords.lon):null;
-        return{...r,_dist:dist};
-      }));
+        if(coords){lat=coords.lat;lng=coords.lon;
+          // Salva coordinate nel DB (fire and forget)
+          if(currentUser&&['admin','reviewer'].includes(currentUser.role)){
+            try{await api('PATCH','/restaurants/'+r.id,{lat,lng});}catch{}
+          }
+        }
+      }
+      const dist=(userCoords&&lat)?haversine(userCoords.lat,userCoords.lon,lat,lng):null;
+      return{...r,lat,lng,_dist:dist};
+    }));
+
+    // Ordina per distanza se in modalità "vicino a me"
+    if(nearMeMode&&userCoords){
       geoData.sort((a,b)=>{
         if(a._dist==null&&b._dist==null)return 0;
         if(a._dist==null)return 1;if(b._dist==null)return-1;
         return a._dist-b._dist;
       });
-      document.getElementById('listCards').innerHTML=geoData.length?geoData.map(r=>card(r,r._dist)).join(''):'<div class="empty"><p>Nessun ristorante trovato</p></div>';
-    }else{
-      document.getElementById('listCards').innerHTML=data.length?data.map(r=>card(r)).join(''):'<div class="empty"><p>Nessun ristorante trovato</p></div>';
     }
+
+    // Render cards
+    document.getElementById('listCards').innerHTML=geoData.length?geoData.map(r=>card(r,r._dist)).join(''):'<div class="empty"><p>Nessun ristorante trovato</p></div>';
+
+    // Render mappa
+    renderMap(geoData);
   }catch(e){document.getElementById('listCards').innerHTML='<div class="empty"><p>Errore</p></div>';}
+}
+
+function renderMap(restaurants){
+  const mapEl=document.getElementById('mapWrap');
+  if(!mapEl)return;
+  const withCoords=restaurants.filter(r=>r.lat&&r.lng);
+
+  // Inizializza mappa (centro su Quarto d'Altino)
+  if(!listMap){
+    listMap=L.map('mapWrap',{zoomControl:true,scrollWheelZoom:true}).setView([45.5267,12.3731],12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      attribution:'© <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+      maxZoom:18
+    }).addTo(listMap);
+    listMarkers=L.featureGroup().addTo(listMap);
+  }else{
+    listMarkers.clearLayers();
+  }
+
+  // Marker personalizzato verde
+  const greenIcon=L.divIcon({
+    html:'<div style="background:var(--green,#6BBF3E);width:28px;height:28px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;color:white;font-size:13px;font-weight:700">🍝</div>',
+    iconSize:[28,28],iconAnchor:[14,14],popupAnchor:[0,-16],className:''
+  });
+
+  withCoords.forEach(r=>{
+    const score=r.avg_score?`<strong>${r.avg_score}</strong>/5`:'Nessun voto';
+    const marker=L.marker([r.lat,r.lng],{icon:greenIcon})
+      .bindPopup(`<div style="font-family:'DM Sans',sans-serif;min-width:140px">
+        <strong style="font-size:.95rem">${esc(r.name)}</strong><br>
+        <span style="font-size:.8rem;color:#666">📍 ${esc(r.place)}</span><br>
+        <span style="font-size:.82rem">${score} · ${r.review_count} rec.</span><br>
+        <a href="#" onclick="event.preventDefault();openDetail(${r.id})" style="color:#6BBF3E;font-size:.82rem;font-weight:600">Vedi dettaglio →</a>
+      </div>`,{closeButton:false});
+    listMarkers.addLayer(marker);
+  });
+
+  // Posizione utente
+  if(userCoords){
+    const userIcon=L.divIcon({
+      html:'<div style="background:#4285f4;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,.3)"></div>',
+      iconSize:[16,16],iconAnchor:[8,8],className:''
+    });
+    L.marker([userCoords.lat,userCoords.lon],{icon:userIcon}).addTo(listMarkers).bindPopup('Tu sei qui');
+  }
+
+  // Fit bounds
+  if(withCoords.length){
+    setTimeout(()=>{listMap.invalidateSize();if(listMarkers.getBounds().isValid())listMap.fitBounds(listMarkers.getBounds(),{padding:[30,30],maxZoom:14});},100);
+  }
 }
 function setFilter(p,el){disableNearMe();currentFilter=p;document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));el.classList.add('active');renderList();}
 
@@ -649,204 +718,257 @@ async function adminDeleteRest(rid){if(!confirm('Rimuovere?'))return;try{await a
 async function adminAddRest(){const n=document.getElementById('adRN').value.trim(),p=document.getElementById('adRP').value.trim(),ph=document.getElementById('adRPh').value.trim();if(!n||!p)return;try{await api('POST','/restaurants',{name:n,place:p,phone:ph||null,tags:['menu fisso']});renderAdmin();toast('Aggiunto!');}catch(e){toast('Errore: '+e.message);}}
 
 // ══════════════════════════════════════════════════════════
-// 🎮 EASTER EGG: byte4DOOM — mini FPS raycasting
+// 🎮 EASTER EGG: byte4DOOM — mini FPS (DDA raycaster)
 // ══════════════════════════════════════════════════════════
-const DOOM_TRIGGER='inferno'; // nome ristorante (case-insensitive, basta che contenga questa parola)
+const DOOM_TRIGGER='piero';
 
 function launchDoom(){
   if(document.getElementById('doomOverlay'))return;
-  const W=640,H=400,TEX=64;
-  const map=[
+  const W=640,H=400,FOV=Math.PI/3;
+  const MAP=[
     [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,2,2,0,0,0,0,0,0,0,3,3,0,0,1],
-    [1,0,2,0,0,0,0,0,0,0,0,0,3,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,3,0,0,0,0,3,0,0,0,0,1],
+    [1,0,0,2,2,0,0,0,0,0,0,3,3,0,0,1],
+    [1,0,0,2,0,0,0,0,0,0,0,0,3,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,4,4,0,0,4,4,0,0,0,0,1],
+    [1,0,0,0,0,4,0,0,0,0,4,0,0,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,4,0,0,0,0,4,0,0,0,0,1],
+    [1,0,0,0,0,4,4,0,0,4,4,0,0,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,3,0,0,0,0,3,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,4,0,0,0,0,0,0,0,0,4,0,0,1],
-    [1,0,0,4,0,0,0,0,0,0,0,0,4,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,3,0,0,0,0,0,0,0,0,2,0,0,1],
+    [1,0,0,3,3,0,0,0,0,0,0,2,2,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   ];
-  const wallColors={1:['#8B0000','#6B0000'],2:['#4a4a4a','#3a3a3a'],3:['#1a5c1a','#0e3e0e'],4:['#8B4513','#6B3410']};
-  let px=8.5,py=1.5,pa=-Math.PI/2,hp=100,ammo=30,kills=0,shooting=0,gameOver=0,won=0;
+  const MW=16,MH=16;
+  // Wall colors: [bright, dark] per wall type
+  const WC={1:[[100,100,110],[70,70,80]],2:[[60,120,60],[40,90,40]],3:[[50,80,140],[35,60,110]],4:[[140,100,50],[110,75,35]]};
+  let px=8,py=2,pa=Math.PI/2,hp=100,ammo=50,kills=0,shooting=0,gameOver=0,won=0,started=0;
   const enemies=[
-    {x:3,y:3,hp:3,alive:1,type:'imp'},{x:12,y:3,hp:3,alive:1,type:'imp'},
-    {x:5,y:9,hp:5,alive:1,type:'demon'},{x:10,y:9,hp:5,alive:1,type:'demon'},
-    {x:7.5,y:7,hp:8,alive:1,type:'baron'},{x:3,y:12,hp:3,alive:1,type:'imp'},
-    {x:12,y:12,hp:3,alive:1,type:'imp'},{x:8,y:13,hp:5,alive:1,type:'demon'},
+    {x:3.5,y:4.5,hp:3,maxHp:3,alive:1,type:'imp',atk:4,spd:1.5},
+    {x:12.5,y:4.5,hp:3,maxHp:3,alive:1,type:'imp',atk:4,spd:1.5},
+    {x:7.5,y:7.5,hp:6,maxHp:6,alive:1,type:'demon',atk:8,spd:1.2},
+    {x:8.5,y:8.5,hp:6,maxHp:6,alive:1,type:'demon',atk:8,spd:1.2},
+    {x:3.5,y:12.5,hp:3,maxHp:3,alive:1,type:'imp',atk:4,spd:1.5},
+    {x:12.5,y:12.5,hp:3,maxHp:3,alive:1,type:'imp',atk:4,spd:1.5},
+    {x:8,y:14,hp:10,maxHp:10,alive:1,type:'baron',atk:12,spd:0.8},
   ];
-  const totalEnemies=enemies.length;
-  const keys={};let lastShot=0;
+  const totalE=enemies.length;
+  const keys={};let lastShot=0,dmgFlash=0;
 
-  // Create DOM
+  // DOM
   const ov=document.createElement('div');ov.id='doomOverlay';
-  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;';
-  const cv=document.createElement('canvas');cv.width=W;cv.height=H;cv.style.cssText='image-rendering:pixelated;width:100%;max-width:960px;max-height:70vh;background:#000;cursor:crosshair;';
-  const info=document.createElement('div');info.style.cssText='color:#aaa;font-family:monospace;font-size:12px;padding:8px;text-align:center;';
-  info.textContent='WASD/frecce: muovi | Mouse: guarda | Click: spara | ESC: esci';
+  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center';
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  cv.style.cssText='image-rendering:pixelated;width:100%;max-width:960px;max-height:75vh;background:#000;cursor:crosshair';
+  const info=document.createElement('div');info.style.cssText='color:#aaa;font-family:monospace;font-size:12px;padding:6px;text-align:center';
+  info.textContent='Clicca per iniziare — WASD: muovi | Mouse: guarda | Click: spara | ESC: esci';
   ov.appendChild(cv);ov.appendChild(info);document.body.appendChild(ov);
   const ctx=cv.getContext('2d');
 
   // Input
-  function onKey(e){keys[e.key.toLowerCase()]=e.type==='keydown';if(e.key==='Escape'){cleanup();}}
-  function onMouse(e){if(!document.pointerLockElement)return;pa+=e.movementX*0.003;}
-  function onClick(){if(!document.pointerLockElement){cv.requestPointerLock();return;}shoot();}
+  const onKey=e=>{keys[e.key.toLowerCase()]=e.type==='keydown';if(e.key==='Escape')cleanup();};
+  const onMouse=e=>{if(document.pointerLockElement)pa+=e.movementX*0.002;};
+  const onClick=()=>{if(!document.pointerLockElement){cv.requestPointerLock();started=1;return;}if(started)shoot();};
   document.addEventListener('keydown',onKey);document.addEventListener('keyup',onKey);
   document.addEventListener('mousemove',onMouse);cv.addEventListener('click',onClick);
 
   function cleanup(){
     document.removeEventListener('keydown',onKey);document.removeEventListener('keyup',onKey);
     document.removeEventListener('mousemove',onMouse);cv.removeEventListener('click',onClick);
-    if(document.pointerLockElement)document.exitPointerLock();
-    ov.remove();gameOver=1;
+    if(document.pointerLockElement)document.exitPointerLock();ov.remove();gameOver=1;
   }
 
   function shoot(){
-    if(ammo<=0||shooting||gameOver)return;
-    const now=Date.now();if(now-lastShot<300)return;lastShot=now;shooting=6;ammo--;
-    // Hitscan: find closest enemy in crosshair
-    let bestDist=Infinity,bestE=null;
-    enemies.forEach(e=>{
-      if(!e.alive)return;
-      const dx=e.x-px,dy=e.y-py,dist=Math.sqrt(dx*dx+dy*dy);
-      const angle=Math.atan2(dy,dx)-pa;let a=angle;while(a>Math.PI)a-=2*Math.PI;while(a<-Math.PI)a+=2*Math.PI;
-      if(Math.abs(a)<0.15&&dist<bestDist){bestDist=dist;bestE=e;}
+    if(ammo<=0||shooting>3||gameOver)return;
+    const now=Date.now();if(now-lastShot<250)return;lastShot=now;shooting=8;ammo--;
+    let bestD=Infinity,bestE=null;
+    enemies.forEach(e=>{if(!e.alive)return;
+      const dx=e.x-px,dy=e.y-py,d=Math.sqrt(dx*dx+dy*dy);
+      let a=Math.atan2(dy,dx)-pa;while(a>Math.PI)a-=2*Math.PI;while(a<-Math.PI)a+=2*Math.PI;
+      if(Math.abs(a)<0.12&&d<bestD){bestD=d;bestE=e;}
     });
-    if(bestE&&bestDist<12){bestE.hp--;if(bestE.hp<=0){bestE.alive=0;kills++;if(kills>=totalEnemies){won=1;gameOver=1;}}}
+    if(bestE&&bestD<14){bestE.hp-=2;if(bestE.hp<=0){bestE.alive=0;kills++;if(kills>=totalE){won=1;gameOver=1;}}}
+  }
+
+  // DDA Raycaster
+  function castRay(angle){
+    const dx=Math.cos(angle),dy=Math.sin(angle);
+    let mapX=Math.floor(px),mapY=Math.floor(py);
+    const ddx=Math.abs(1/dx),ddy=Math.abs(1/dy);
+    let stepX,stepY,sdx,sdy;
+    if(dx<0){stepX=-1;sdx=(px-mapX)*ddx;}else{stepX=1;sdx=(mapX+1-px)*ddx;}
+    if(dy<0){stepY=-1;sdy=(py-mapY)*ddy;}else{stepY=1;sdy=(mapY+1-py)*ddy;}
+    let side=0,wall=0;
+    for(let i=0;i<64;i++){
+      if(sdx<sdy){sdx+=ddx;mapX+=stepX;side=0;}else{sdy+=ddy;mapY+=stepY;side=1;}
+      if(mapX<0||mapY<0||mapX>=MW||mapY>=MH){wall=1;break;}
+      if(MAP[mapY][mapX]>0){wall=MAP[mapY][mapX];break;}
+    }
+    const dist=side===0?(mapX-px+(1-stepX)/2)/dx:(mapY-py+(1-stepY)/2)/dy;
+    return{dist:Math.abs(dist),wall,side};
   }
 
   function movePlayer(dt){
-    if(gameOver)return;
-    let mx=0,my=0;const sp=3*dt;
+    if(gameOver||!started)return;
+    const sp=3.5*dt;let mx=0,my=0;
     if(keys['w']||keys['arrowup']){mx+=Math.cos(pa)*sp;my+=Math.sin(pa)*sp;}
     if(keys['s']||keys['arrowdown']){mx-=Math.cos(pa)*sp;my-=Math.sin(pa)*sp;}
-    if(keys['a']||keys['arrowleft']){mx+=Math.cos(pa-Math.PI/2)*sp;my+=Math.sin(pa-Math.PI/2)*sp;}
-    if(keys['d']||keys['arrowright']){mx+=Math.cos(pa+Math.PI/2)*sp;my+=Math.sin(pa+Math.PI/2)*sp;}
-    if(map[Math.floor(py)][Math.floor(px+mx*1.2)]===0)px+=mx;
-    if(map[Math.floor(py+my*1.2)][Math.floor(px)]===0)py+=my;
+    if(keys['a']){mx+=Math.cos(pa-Math.PI/2)*sp;my+=Math.sin(pa-Math.PI/2)*sp;}
+    if(keys['d']){mx+=Math.cos(pa+Math.PI/2)*sp;my+=Math.sin(pa+Math.PI/2)*sp;}
+    if(keys['arrowleft'])pa-=2.5*dt;
+    if(keys['arrowright'])pa+=2.5*dt;
+    const r=0.2;
+    if(MAP[Math.floor(py)][Math.floor(px+mx+r*Math.sign(mx))]===0)px+=mx;
+    if(MAP[Math.floor(py+my+r*Math.sign(my))][Math.floor(px)]===0)py+=my;
   }
 
   function moveEnemies(dt){
-    if(gameOver)return;
-    enemies.forEach(e=>{
-      if(!e.alive)return;
-      const dx=px-e.x,dy=py-e.y,dist=Math.sqrt(dx*dx+dy*dy);
-      const speed=(e.type==='baron'?1.2:e.type==='demon'?1.8:1.0)*dt;
-      if(dist>0.8){const nx=dx/dist*speed,ny=dy/dist*speed;
-        if(map[Math.floor(e.y)][Math.floor(e.x+nx*1.5)]===0)e.x+=nx;
-        if(map[Math.floor(e.y+ny*1.5)][Math.floor(e.x)]===0)e.y+=ny;
+    if(gameOver||!started)return;
+    enemies.forEach(e=>{if(!e.alive)return;
+      const dx=px-e.x,dy=py-e.y,d=Math.sqrt(dx*dx+dy*dy);
+      if(d>0.6){const s=e.spd*dt,nx=dx/d*s,ny=dy/d*s;
+        if(MAP[Math.floor(e.y)][Math.floor(e.x+nx+0.2*Math.sign(nx))]===0)e.x+=nx;
+        if(MAP[Math.floor(e.y+ny+0.2*Math.sign(ny))][Math.floor(e.x)]===0)e.y+=ny;
       }
-      if(dist<1.0&&Math.random()<2*dt){hp-=(e.type==='baron'?15:e.type==='demon'?10:5);if(hp<=0){hp=0;gameOver=1;}}
+      if(d<0.9&&Math.random()<1.5*dt){hp-=e.atk;dmgFlash=6;if(hp<=0){hp=0;gameOver=1;}}
     });
-  }
-
-  function castRay(angle){
-    const sin=Math.sin(angle),cos=Math.cos(angle);
-    let t=0;
-    while(t<20){t+=0.02;const x=px+cos*t,y=py+sin*t;
-      const mx=Math.floor(x),my=Math.floor(y);
-      if(mx<0||my<0||mx>=16||my>=16||map[my][mx]>0){
-        const side=Math.abs(x-Math.round(x))<Math.abs(y-Math.round(y))?0:1;
-        return{dist:t,wall:map[my][mx],side};
-      }
-    }
-    return{dist:20,wall:0,side:0};
   }
 
   function render(){
-    // Sky + floor
-    ctx.fillStyle='#1a0a0a';ctx.fillRect(0,0,W,H/2);
-    ctx.fillStyle='#3a3a3a';ctx.fillRect(0,H/2,W,H/2);
+    // Sky gradient
+    const skyG=ctx.createLinearGradient(0,0,0,H/2);
+    skyG.addColorStop(0,'#0a0a1a');skyG.addColorStop(1,'#1a1020');
+    ctx.fillStyle=skyG;ctx.fillRect(0,0,W,H/2);
+    // Floor gradient
+    const flG=ctx.createLinearGradient(0,H/2,0,H);
+    flG.addColorStop(0,'#2a2a2a');flG.addColorStop(1,'#444');
+    ctx.fillStyle=flG;ctx.fillRect(0,H/2,W,H/2);
 
-    // Walls (raycasting)
-    const zbuf=[];
+    // Walls
+    const zbuf=new Float32Array(W);
     for(let x=0;x<W;x++){
-      const rayAngle=pa+(x/W-0.5)*1.2;
-      const hit=castRay(rayAngle);
-      const perp=hit.dist*Math.cos(rayAngle-pa);zbuf[x]=perp;
-      const lh=Math.min(H*1.5,H/perp);const y0=(H-lh)/2;
-      const c=wallColors[hit.wall]||['#666','#555'];
-      const shade=Math.max(0.2,1-perp/12);
-      const base=hit.side===0?c[0]:c[1];
-      const r=parseInt(base.slice(1,3),16)*shade|0;
-      const g=parseInt(base.slice(3,5),16)*shade|0;
-      const b=parseInt(base.slice(5,7),16)*shade|0;
-      ctx.fillStyle=`rgb(${r},${g},${b})`;ctx.fillRect(x,y0,1,lh);
+      const rayA=pa-FOV/2+FOV*(x/W);
+      const hit=castRay(rayA);
+      const perp=hit.dist*Math.cos(rayA-pa);
+      zbuf[x]=perp;
+      if(perp<=0)continue;
+      const lh=Math.min(H*2,H/perp);
+      const y0=(H-lh)/2;
+      const wc=WC[hit.wall]||WC[1];
+      const c=wc[hit.side];
+      const shade=Math.max(0.15,Math.min(1,1.5/perp));
+      ctx.fillStyle=`rgb(${c[0]*shade|0},${c[1]*shade|0},${c[2]*shade|0})`;
+      ctx.fillRect(x,y0,1,lh);
     }
 
-    // Enemies (sprite-like)
+    // Enemies
     const sorted=[...enemies].filter(e=>e.alive).map(e=>{
       const dx=e.x-px,dy=e.y-py;return{...e,dist:Math.sqrt(dx*dx+dy*dy),ang:Math.atan2(dy,dx)};
     }).sort((a,b)=>b.dist-a.dist);
-
     sorted.forEach(e=>{
-      let ang=e.ang-pa;while(ang>Math.PI)ang-=2*Math.PI;while(ang<-Math.PI)ang+=2*Math.PI;
-      if(Math.abs(ang)>0.8)return;
-      const sx=W/2+ang/(1.2/2)*W;
-      const sz=H/(e.dist*0.8);
+      let a=e.ang-pa;while(a>Math.PI)a-=2*Math.PI;while(a<-Math.PI)a+=2*Math.PI;
+      if(Math.abs(a)>FOV/2+0.1)return;
+      const sx=W/2+(a/FOV)*W;
+      const perp=e.dist*Math.cos(a);if(perp<=0.1)return;
+      const sz=H/perp*0.8;
       const sy=H/2-sz/2;
-      // Check zbuffer
-      const scrX=Math.floor(sx);if(scrX>=0&&scrX<W&&zbuf[scrX]<e.dist)return;
-      const col=e.type==='baron'?'#ff2200':e.type==='demon'?'#aa4400':'#cc6600';
+      // Z-buffer check (sample multiple columns)
+      const hw=sz/3;let blocked=0,total=0;
+      for(let cx=Math.max(0,Math.floor(sx-hw));cx<Math.min(W,Math.ceil(sx+hw));cx++){total++;if(zbuf[cx]<perp)blocked++;}
+      if(total>0&&blocked/total>0.7)return;
+
+      const shade=Math.max(0.3,Math.min(1,2/perp));
+      const colors={imp:[220,130,50],demon:[180,60,30],baron:[200,20,20]};
+      const bc=colors[e.type]||colors.imp;
+      const rc=bc.map(v=>v*shade|0);
+
+      // Shadow
+      ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(sx,H/2+sz/2,sz/3,sz/8,0,0,Math.PI*2);ctx.fill();
       // Body
-      ctx.fillStyle=col;ctx.fillRect(sx-sz/3,sy+sz*0.1,sz*0.66,sz*0.7);
+      ctx.fillStyle=`rgb(${rc[0]},${rc[1]},${rc[2]})`;
+      ctx.fillRect(sx-sz/4,sy+sz*0.25,sz/2,sz*0.55);
       // Head
-      ctx.fillStyle=col;ctx.beginPath();ctx.arc(sx,sy+sz*0.1,sz/4,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(sx,sy+sz*0.2,sz/5,0,Math.PI*2);ctx.fill();
+      // Arms
+      ctx.fillRect(sx-sz/3,sy+sz*0.3,sz/8,sz*0.3);
+      ctx.fillRect(sx+sz/3-sz/8,sy+sz*0.3,sz/8,sz*0.3);
       // Eyes
-      ctx.fillStyle='#ff0';const eyeS=Math.max(2,sz/12);
-      ctx.fillRect(sx-sz/8,sy+sz*0.05,eyeS,eyeS);ctx.fillRect(sx+sz/8-eyeS,sy+sz*0.05,eyeS,eyeS);
+      const es=Math.max(2,sz/14);
+      ctx.fillStyle=e.type==='baron'?'#ff0':'#ff8';
+      ctx.fillRect(sx-sz/8,sy+sz*0.15,es,es);ctx.fillRect(sx+sz/8-es,sy+sz*0.15,es,es);
+      // Horns for baron
+      if(e.type==='baron'){ctx.fillStyle=`rgb(${rc[0]},${rc[1]},${rc[2]})`;
+        ctx.beginPath();ctx.moveTo(sx-sz/5,sy+sz*0.1);ctx.lineTo(sx-sz/4,sy-sz*0.05);ctx.lineTo(sx-sz/8,sy+sz*0.1);ctx.fill();
+        ctx.beginPath();ctx.moveTo(sx+sz/5,sy+sz*0.1);ctx.lineTo(sx+sz/4,sy-sz*0.05);ctx.lineTo(sx+sz/8,sy+sz*0.1);ctx.fill();
+      }
       // HP bar
-      const hpMax=e.type==='baron'?8:e.type==='demon'?5:3;
-      ctx.fillStyle='#600';ctx.fillRect(sx-sz/3,sy-8,sz*0.66,4);
-      ctx.fillStyle='#f00';ctx.fillRect(sx-sz/3,sy-8,sz*0.66*(e.hp/hpMax),4);
+      if(e.hp<e.maxHp){
+        ctx.fillStyle='#400';ctx.fillRect(sx-sz/4,sy-6,sz/2,4);
+        ctx.fillStyle='#f00';ctx.fillRect(sx-sz/4,sy-6,sz/2*(e.hp/e.maxHp),4);
+      }
     });
 
     // Weapon
-    const wbx=W/2-40,wby=H-120+(shooting>0?-8+Math.random()*6:0);
-    ctx.fillStyle='#555';ctx.fillRect(wbx+15,wby,10,80); // barrel
-    ctx.fillStyle='#444';ctx.fillRect(wbx,wby+50,40,40); // grip
-    ctx.fillStyle='#666';ctx.fillRect(wbx+5,wby+30,30,25); // body
-    if(shooting>3){ctx.fillStyle='#ff0';ctx.beginPath();ctx.arc(wbx+20,wby-10,12,0,Math.PI*2);ctx.fill();ctx.fillStyle='#f80';ctx.beginPath();ctx.arc(wbx+20,wby-5,8,0,Math.PI*2);ctx.fill();}
+    const wOff=shooting>5?-12:shooting>3?-6:0;
+    const bob=started&&!gameOver?Math.sin(Date.now()/150)*2:0;
+    const wx=W/2-30,wy=H-100+wOff+bob;
+    ctx.fillStyle='#666';ctx.fillRect(wx+12,wy-20,8,60);// barrel
+    ctx.fillStyle='#555';ctx.fillRect(wx+8,wy+15,16,8);// trigger guard
+    ctx.fillStyle='#777';ctx.fillRect(wx+4,wy+23,24,30);// grip
+    ctx.fillStyle='#888';ctx.fillRect(wx,wy,32,20);// receiver
+    if(shooting>5){// muzzle flash
+      ctx.fillStyle='#ff0';ctx.beginPath();ctx.arc(wx+16,wy-28,14,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#fa0';ctx.beginPath();ctx.arc(wx+16,wy-22,9,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#f00';ctx.beginPath();ctx.arc(wx+16,wy-18,5,0,Math.PI*2);ctx.fill();
+    }
     if(shooting>0)shooting--;
 
-    // Crosshair
-    ctx.strokeStyle='#0f0';ctx.lineWidth=1;
-    ctx.beginPath();ctx.moveTo(W/2-8,H/2);ctx.lineTo(W/2+8,H/2);ctx.moveTo(W/2,H/2-8);ctx.lineTo(W/2,H/2+8);ctx.stroke();
+    // Damage flash
+    if(dmgFlash>0){ctx.fillStyle=`rgba(255,0,0,${dmgFlash*0.06})`;ctx.fillRect(0,0,W,H);dmgFlash--;}
 
-    // HUD bar
-    ctx.fillStyle='#333';ctx.fillRect(0,H-30,W,30);
-    // Health
-    ctx.fillStyle=hp>50?'#0f0':hp>25?'#ff0':'#f00';ctx.font='bold 18px monospace';
-    ctx.fillText('♥ '+hp,12,H-8);
-    // Ammo
-    ctx.fillStyle='#ff0';ctx.fillText('◆ '+ammo,140,H-8);
-    // Kills
-    ctx.fillStyle='#fff';ctx.fillText('☠ '+kills+'/'+totalEnemies,260,H-8);
-    // Title
-    ctx.fillStyle='#f00';ctx.font='bold 16px monospace';ctx.fillText('byte4DOOM',W-120,H-8);
+    // Crosshair
+    ctx.strokeStyle='rgba(0,255,0,0.8)';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(W/2-10,H/2);ctx.lineTo(W/2-3,H/2);ctx.moveTo(W/2+3,H/2);ctx.lineTo(W/2+10,H/2);
+    ctx.moveTo(W/2,H/2-10);ctx.lineTo(W/2,H/2-3);ctx.moveTo(W/2,H/2+3);ctx.lineTo(W/2,H/2+10);ctx.stroke();
+    ctx.fillStyle='rgba(0,255,0,0.6)';ctx.fillRect(W/2-1,H/2-1,2,2);
+
+    // HUD
+    ctx.fillStyle='rgba(30,30,30,0.85)';ctx.fillRect(0,H-32,W,32);
+    ctx.font='bold 16px monospace';
+    ctx.fillStyle=hp>60?'#0f0':hp>30?'#ff0':'#f00';ctx.fillText('HP '+hp,16,H-10);
+    ctx.fillStyle='#fa0';ctx.fillText('AMMO '+ammo,130,H-10);
+    ctx.fillStyle='#fff';ctx.fillText('KILLS '+kills+'/'+totalE,280,H-10);
+    ctx.fillStyle='#f33';ctx.font='bold 14px monospace';ctx.fillText('byte4DOOM',W-110,H-10);
 
     // Minimap
-    const ms=3;
-    ctx.globalAlpha=0.6;
-    for(let y=0;y<16;y++)for(let x=0;x<16;x++){ctx.fillStyle=map[y][x]?'#666':'#222';ctx.fillRect(W-56+x*ms,4+y*ms,ms,ms);}
-    ctx.fillStyle='#0f0';ctx.fillRect(W-56+px*ms-1,4+py*ms-1,3,3);
-    enemies.forEach(e=>{if(e.alive){ctx.fillStyle='#f00';ctx.fillRect(W-56+e.x*ms-1,4+e.y*ms-1,2,2);}});
+    const ms=3;ctx.globalAlpha=0.5;
+    for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){ctx.fillStyle=MAP[y][x]?'#888':'#222';ctx.fillRect(W-54+x*ms,4+y*ms,ms-0.5,ms-0.5);}
+    ctx.globalAlpha=0.9;ctx.fillStyle='#0f0';ctx.fillRect(W-54+px*ms-1,4+py*ms-1,3,3);
+    enemies.forEach(e=>{if(e.alive){ctx.fillStyle='#f00';ctx.fillRect(W-54+e.x*ms-1,4+e.y*ms-1,2,2);}});
     ctx.globalAlpha=1;
 
-    // Game over / win
+    // Title screen
+    if(!started){
+      ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,H);
+      ctx.textAlign='center';
+      ctx.fillStyle='#f33';ctx.font='bold 52px monospace';ctx.fillText('byte4DOOM',W/2,H/2-50);
+      ctx.fillStyle='#fa0';ctx.font='bold 18px monospace';ctx.fillText("La vendetta di Piero's Snack",W/2,H/2);
+      ctx.fillStyle='#aaa';ctx.font='16px monospace';ctx.fillText('Clicca per giocare',W/2,H/2+40);
+      ctx.textAlign='left';
+    }
+
+    // End screen
     if(gameOver){
       ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
-      ctx.fillStyle=won?'#0f0':'#f00';ctx.font='bold 48px monospace';ctx.textAlign='center';
+      ctx.textAlign='center';
+      ctx.fillStyle=won?'#0f0':'#f00';ctx.font='bold 44px monospace';
       ctx.fillText(won?'HAI VINTO!':'SEI MORTO',W/2,H/2-20);
-      ctx.fillStyle='#fff';ctx.font='20px monospace';
-      ctx.fillText(won?'Tutti i demoni sono stati sconfitti!':'I demoni ti hanno sopraffatto...',W/2,H/2+20);
+      ctx.fillStyle='#fff';ctx.font='18px monospace';
+      ctx.fillText(won?'Piero ti offre uno snack gratis!':'Piero ti ha sopraffatto...',W/2,H/2+20);
       ctx.fillText('Premi ESC per uscire',W/2,H/2+55);
       ctx.textAlign='left';
     }
