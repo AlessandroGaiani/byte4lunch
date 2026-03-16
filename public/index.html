@@ -916,15 +916,31 @@ function launchDoom(){
   ];
   const totalE=enemies.length;
   const keys={};let lastShot=0,dmgFlash=0;
+  let mJoy=null,mLook=null,mLookBase={x:0,y:0},joyBaseX=0,joyBaseY=0,joyDx=0,joyDy=0;
+  const isMobile='ontouchstart' in window||navigator.maxTouchPoints>0;
 
   // DOM
   const ov=document.createElement('div');ov.id='doomOverlay';
-  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center';
+  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;touch-action:none';
   const cv=document.createElement('canvas');cv.width=W;cv.height=H;
-  cv.style.cssText='image-rendering:pixelated;width:100%;max-width:960px;max-height:75vh;background:#000;cursor:crosshair';
-  const info=document.createElement('div');info.style.cssText='color:#aaa;font-family:monospace;font-size:12px;padding:6px;text-align:center';
-  info.textContent='Clicca per iniziare — WASD: muovi | Mouse: guarda | Click: spara | ESC: esci';
-  ov.appendChild(cv);ov.appendChild(info);document.body.appendChild(ov);
+  if(isMobile){
+    cv.style.cssText='image-rendering:pixelated;width:100%;height:100%;position:absolute;top:0;left:0;background:#000;touch-action:none';
+    const fireBtn=document.createElement('div');
+    fireBtn.style.cssText='position:absolute;bottom:20px;right:20px;width:72px;height:72px;border-radius:50%;background:rgba(200,40,40,0.75);border:3px solid #f55;display:flex;align-items:center;justify-content:center;font-size:28px;z-index:2;touch-action:none;user-select:none;-webkit-user-select:none';
+    fireBtn.textContent='🔫';
+    fireBtn.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();if(!started){started=1;}else if(gameOver){restart();}else{shoot();}},{passive:false});
+    const exitBtn=document.createElement('div');
+    exitBtn.style.cssText='position:absolute;top:10px;right:10px;width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,0.65);border:2px solid #666;display:flex;align-items:center;justify-content:center;font-size:17px;color:#ccc;z-index:2;touch-action:none;user-select:none;-webkit-user-select:none';
+    exitBtn.textContent='✕';
+    exitBtn.addEventListener('touchstart',e=>{e.preventDefault();cleanup();},{passive:false});
+    ov.appendChild(cv);ov.appendChild(fireBtn);ov.appendChild(exitBtn);
+  }else{
+    cv.style.cssText='image-rendering:pixelated;width:100%;max-width:960px;max-height:75vh;background:#000;cursor:crosshair';
+    const info=document.createElement('div');info.style.cssText='color:#aaa;font-family:monospace;font-size:12px;padding:6px;text-align:center';
+    info.textContent='Clicca per iniziare — WASD: muovi | Mouse: guarda | Click: spara | ESC: esci';
+    ov.appendChild(cv);ov.appendChild(info);
+  }
+  document.body.appendChild(ov);
   const ctx=cv.getContext('2d');
 
   // Input
@@ -938,10 +954,47 @@ function launchDoom(){
   const onClick=()=>{if(!document.pointerLockElement){cv.requestPointerLock();started=1;return;}if(started)shoot();};
   document.addEventListener('keydown',onKey);document.addEventListener('keyup',onKey);
   document.addEventListener('mousemove',onMouse);cv.addEventListener('click',onClick);
+  if(isMobile){
+    const onTS=e=>{
+      e.preventDefault();
+      if(!started){started=1;return;}
+      for(const t of e.changedTouches){
+        const rx=t.clientX/window.innerWidth;
+        if(rx<0.5&&mJoy===null){mJoy=t.identifier;joyBaseX=t.clientX;joyBaseY=t.clientY;joyDx=0;joyDy=0;}
+        else if(rx>=0.5&&mLook===null){mLook=t.identifier;mLookBase={x:t.clientX,y:t.clientY};}
+      }
+    };
+    const onTM=e=>{
+      e.preventDefault();
+      for(const t of e.changedTouches){
+        if(t.identifier===mJoy){
+          joyDx=t.clientX-joyBaseX;joyDy=t.clientY-joyBaseY;
+          const dead=15;
+          keys['w']=joyDy<-dead;keys['s']=joyDy>dead;
+          keys['a']=joyDx<-dead;keys['d']=joyDx>dead;
+        }else if(t.identifier===mLook){
+          pa+=(t.clientX-mLookBase.x)*0.007;
+          mLookBase={x:t.clientX,y:t.clientY};
+        }
+      }
+    };
+    const onTE=e=>{
+      for(const t of e.changedTouches){
+        if(t.identifier===mJoy){mJoy=null;joyDx=0;joyDy=0;keys['w']=false;keys['s']=false;keys['a']=false;keys['d']=false;}
+        else if(t.identifier===mLook){mLook=null;}
+      }
+    };
+    cv.addEventListener('touchstart',onTS,{passive:false});
+    cv.addEventListener('touchmove',onTM,{passive:false});
+    cv.addEventListener('touchend',onTE,{passive:false});
+    cv.addEventListener('touchcancel',onTE,{passive:false});
+    cv._th={onTS,onTM,onTE};
+  }
 
   function cleanup(){
     document.removeEventListener('keydown',onKey);document.removeEventListener('keyup',onKey);
     document.removeEventListener('mousemove',onMouse);cv.removeEventListener('click',onClick);
+    if(cv._th){cv.removeEventListener('touchstart',cv._th.onTS);cv.removeEventListener('touchmove',cv._th.onTM);cv.removeEventListener('touchend',cv._th.onTE);cv.removeEventListener('touchcancel',cv._th.onTE);}
     if(document.pointerLockElement)document.exitPointerLock();ov.remove();gameOver=1;
   }
 
@@ -1196,13 +1249,25 @@ function launchDoom(){
     // Fireballs on minimap
     ctx.fillStyle='#f80';fireballs.forEach(f=>{ctx.fillRect(mmx+f.x*ms-1,mmy+f.y*ms-1,2,2);});
 
+    // Mobile joystick visual
+    if(isMobile&&started&&!gameOver){
+      const jx=62,jy=H-62,jr=42;
+      ctx.fillStyle='rgba(255,255,255,0.10)';ctx.beginPath();ctx.arc(jx,jy,jr,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,0.25)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(jx,jy,jr,0,Math.PI*2);ctx.stroke();
+      if(mJoy!==null){
+        const dx=Math.max(-jr,Math.min(jr,joyDx*0.65));
+        const dy=Math.max(-jr,Math.min(jr,joyDy*0.65));
+        ctx.fillStyle='rgba(255,255,255,0.42)';ctx.beginPath();ctx.arc(jx+dx,jy+dy,jr*0.38,0,Math.PI*2);ctx.fill();
+      }
+    }
+
     // Title screen
     if(!started){
       ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,H);
       ctx.textAlign='center';
       ctx.fillStyle='#f33';ctx.font='bold 52px monospace';ctx.fillText('byte4DOOM',W/2,H/2-50);
       ctx.fillStyle='#fa0';ctx.font='bold 18px monospace';ctx.fillText("La vendetta di Piero's Snack",W/2,H/2);
-      ctx.fillStyle='#aaa';ctx.font='16px monospace';ctx.fillText('Clicca per giocare',W/2,H/2+40);
+      ctx.fillStyle='#aaa';ctx.font='16px monospace';ctx.fillText(isMobile?'Tocca 🔫 per giocare':'Clicca per giocare',W/2,H/2+40);
       ctx.textAlign='left';
     }
 
@@ -1245,7 +1310,7 @@ function launchDoom(){
         ctx.fillText('GRADO: '+rating,W/2,H/2+90);
 
         ctx.fillStyle='#aaa';ctx.font='14px monospace';
-        ctx.fillText('Premi R per rigiocare | ESC per uscire',W/2,H/2+125);
+        ctx.fillText(isMobile?'🔫 Rivinci  |  ✕ Esci':'Premi R per rigiocare | ESC per uscire',W/2,H/2+125);
       }else{
         // Death screen
         const deathPulse=Math.sin(Date.now()/400)*0.3+0.7;
@@ -1257,7 +1322,7 @@ function launchDoom(){
         ctx.fillStyle='#fff';ctx.font='16px monospace';
         ctx.fillText('Nemici uccisi: '+kills+'/'+totalE,W/2,H/2+45);
         ctx.fillStyle='#aaa';ctx.font='14px monospace';
-        ctx.fillText('Premi R per rigiocare | ESC per uscire',W/2,H/2+80);
+        ctx.fillText(isMobile?'🔫 Riprova  |  ✕ Esci':'Premi R per rigiocare | ESC per uscire',W/2,H/2+80);
       }
       ctx.textAlign='left';
     }
