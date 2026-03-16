@@ -204,7 +204,7 @@ nav{position:sticky;top:0;z-index:100;background:var(--dark);display:flex;align-
     <div class="form-group">
       <label class="form-label">— oppure cerca nuovo ristorante —</label>
       <div style="position:relative">
-        <input class="form-input" id="rvSearchPlace" placeholder="Cerca ristorante... es. Pizzeria Da Mario, Quarto d'Altino" autocomplete="off">
+        <input class="form-input" id="rvSearchPlace" placeholder="🔍 Cerca su mappa... es. Pizzeria Da Mario" autocomplete="off" style="font-size:1rem">
         <div id="rvSearchResults" style="position:absolute;top:100%;left:0;right:0;z-index:100;background:var(--bg);border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;max-height:240px;overflow-y:auto;display:none;box-shadow:0 8px 24px rgba(0,0,0,.12)"></div>
       </div>
       <div id="rvSelectedPlace" style="display:none;margin-top:10px;padding:12px;background:rgba(107,191,62,.08);border:1px solid rgba(107,191,62,.3);border-radius:10px">
@@ -327,7 +327,7 @@ async function geocodePlace(place){
 }
 function fmtDist(km){return km<1?(Math.round(km*1000)+'m'):(km.toFixed(1)+'km');}
 
-// ── Ricerca ristoranti con Nominatim ─────────────────────
+// ── Ricerca ristoranti con Photon + Overpass (OpenStreetMap) ──
 let placeSearchTimer=null;
 function initPlaceSearch(){
   const input=document.getElementById('rvSearchPlace');
@@ -337,72 +337,144 @@ function initPlaceSearch(){
     clearTimeout(placeSearchTimer);
     const q=input.value.trim();
     if(q.length<3){results.style.display='none';return;}
-    results.innerHTML='<div class="place-searching">Ricerca in corso...</div>';
+    results.innerHTML='<div class="place-searching">🔍 Ricerca ristoranti...</div>';
     results.style.display='block';
-    placeSearchTimer=setTimeout(()=>searchPlaces(q),500);
+    placeSearchTimer=setTimeout(()=>searchPlaces(q),600);
   });
   input.addEventListener('focus',()=>{if(results.children.length>0&&input.value.trim().length>=3)results.style.display='block';});
   document.addEventListener('click',e=>{if(!e.target.closest('#rvSearchPlace')&&!e.target.closest('#rvSearchResults'))results.style.display='none';});
 }
+
+// Cerca con Overpass API (ristoranti/bar/locali OSM) + Photon come fallback
 async function searchPlaces(query){
   const results=document.getElementById('rvSearchResults');
+  const combined=[];
+
+  // 1) Overpass: cerca ristoranti/bar/cafe/fast_food per nome nell'area Veneto
   try{
-    // Cerca ristoranti/bar/locali vicino a Quarto d'Altino (Veneto)
-    const bbox='12.0,45.3,12.8,45.7'; // area Venezia/Treviso
-    const url=`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=8&countrycodes=it&viewbox=${bbox}&bounded=0&extratags=1`;
-    const r=await fetch(url,{headers:{'User-Agent':'byte4lunch/1.0'}});
-    const data=await r.json();
-    if(!data.length){
-      results.innerHTML='<div class="place-searching">Nessun risultato. Prova con parole diverse.</div>';
-      return;
+    const escapedQ=query.replace(/'/g,"\\'");
+    const overpassQuery=`[out:json][timeout:8];
+      (
+        nwr["amenity"~"restaurant|bar|cafe|fast_food|pub"]["name"~"${escapedQ}",i](45.2,11.8,45.8,12.8);
+        nwr["shop"~"bakery|pastry"]["name"~"${escapedQ}",i](45.2,11.8,45.8,12.8);
+        nwr["tourism"~"hotel"]["name"~"${escapedQ}",i](45.2,11.8,45.8,12.8);
+      );
+      out center 10;`;
+    const ovRes=await fetch('https://overpass-api.de/api/interpreter',{
+      method:'POST',
+      body:'data='+encodeURIComponent(overpassQuery),
+      headers:{'Content-Type':'application/x-www-form-urlencoded'}
+    });
+    const ovData=await ovRes.json();
+    if(ovData.elements){
+      ovData.elements.forEach(el=>{
+        const tags=el.tags||{};
+        const lat=el.center?el.center.lat:el.lat;
+        const lon=el.center?el.center.lon:el.lon;
+        if(!lat||!lon)return;
+        const road=tags['addr:street']||'';
+        const number=tags['addr:housenumber']||'';
+        const city=tags['addr:city']||tags['addr:town']||tags['addr:village']||'';
+        const postcode=tags['addr:postcode']||'';
+        const fullAddr=[road+(number?' '+number:''),postcode,city].filter(Boolean).join(', ');
+        const amenity=tags.amenity||tags.shop||tags.tourism||'';
+        const typeLabels={restaurant:'Ristorante',bar:'Bar',cafe:'Caffetteria',fast_food:'Fast food',pub:'Pub',bakery:'Panetteria',pastry:'Pasticceria',hotel:'Hotel'};
+        combined.push({
+          name:tags.name||'',
+          addr:fullAddr,
+          city:city,
+          lat:lat,
+          lon:lon,
+          phone:tags.phone||tags['contact:phone']||'',
+          website:tags.website||tags['contact:website']||'',
+          cuisine:tags.cuisine||'',
+          type:typeLabels[amenity]||amenity.replace(/_/g,' '),
+          source:'osm'
+        });
+      });
     }
-    results.innerHTML=data.map((p,i)=>{
-      const addr=p.address||{};
-      const road=addr.road||'';
-      const number=addr.house_number||'';
-      const city=addr.city||addr.town||addr.village||addr.municipality||'';
-      const postcode=addr.postcode||'';
-      const fullAddr=[road+(number?' '+number:''),postcode,city].filter(Boolean).join(', ');
-      const displayName=p.display_name.split(',').slice(0,3).join(',');
-      const type=p.type||p.class||'';
-      const phone=p.extratags&&p.extratags.phone?p.extratags.phone:'';
-      const name=p.name||p.display_name.split(',')[0];
-      return `<div class="place-result" tabindex="0" onclick="selectPlace(${i})" data-idx="${i}">
-        <div class="place-result-name">${esc(name)}</div>
-        <div class="place-result-addr">📍 ${esc(fullAddr||displayName)}</div>
-        ${type?`<span class="place-result-type">${esc(type.replace(/_/g,' '))}</span>`:''}
-      </div>`;
-    }).join('');
-    // Store data for selection
-    results._placeData=data;
-  }catch(e){
-    results.innerHTML='<div class="place-searching">Errore di connessione. Riprova.</div>';
+  }catch(e){console.log('Overpass error:',e);}
+
+  // 2) Photon: ricerca più ampia (geocoder intelligente basato su OSM)
+  try{
+    const phUrl=`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lat=45.527&lon=12.373&lang=it`;
+    const phRes=await fetch(phUrl);
+    const phData=await phRes.json();
+    if(phData.features){
+      phData.features.forEach(f=>{
+        const p=f.properties||{};
+        const g=f.geometry||{};
+        if(!g.coordinates||!g.coordinates.length)return;
+        const [lon,lat]=g.coordinates;
+        // Evita duplicati (stesso nome e distanza < 100m)
+        const isDupe=combined.some(c=>c.name.toLowerCase()===p.name?.toLowerCase()&&Math.abs(c.lat-lat)<0.001&&Math.abs(c.lon-lon)<0.001);
+        if(isDupe)return;
+        const road=p.street||'';
+        const number=p.housenumber||'';
+        const city=p.city||p.town||p.village||'';
+        const postcode=p.postcode||'';
+        const fullAddr=[road+(number?' '+number:''),postcode,city].filter(Boolean).join(', ');
+        const osmType=p.osm_value||p.type||'';
+        const typeLabels={restaurant:'Ristorante',bar:'Bar',cafe:'Caffetteria',fast_food:'Fast food',pub:'Pub',bakery:'Panetteria',yes:'Locale'};
+        combined.push({
+          name:p.name||fullAddr||query,
+          addr:fullAddr||p.street||p.city||'',
+          city:city,
+          lat:lat,
+          lon:lon,
+          phone:'',
+          website:'',
+          cuisine:'',
+          type:typeLabels[osmType]||osmType.replace(/_/g,' ')||p.osm_key||'',
+          source:'photon'
+        });
+      });
+    }
+  }catch(e){console.log('Photon error:',e);}
+
+  // Render risultati
+  if(!combined.length){
+    results.innerHTML='<div class="place-searching">Nessun ristorante trovato. Prova con un altro nome o aggiungi la città.</div>';
+    return;
   }
+
+  // Ordina: prima i risultati OSM (più precisi per locali), poi Photon
+  combined.sort((a,b)=>{
+    if(a.source!==b.source)return a.source==='osm'?-1:1;
+    return 0;
+  });
+
+  results._placeData=combined;
+  results.innerHTML=combined.slice(0,10).map((p,i)=>{
+    return `<div class="place-result" tabindex="0" onclick="selectPlace(${i})" data-idx="${i}">
+      <div class="place-result-name">${esc(p.name)}</div>
+      <div class="place-result-addr">📍 ${esc(p.addr||'Posizione disponibile')}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px">
+        ${p.type?`<span class="place-result-type">${esc(p.type)}</span>`:''}
+        ${p.cuisine?`<span class="place-result-type" style="background:rgba(66,133,244,.1);color:#4285f4">${esc(p.cuisine.replace(/;/g,', '))}</span>`:''}
+        ${p.source==='osm'?'<span class="place-result-type" style="background:rgba(66,133,244,.08);color:#666">✓ verificato OSM</span>':''}
+      </div>
+    </div>`;
+  }).join('');
 }
+
 function selectPlace(idx){
   const results=document.getElementById('rvSearchResults');
   const data=results._placeData;if(!data||!data[idx])return;
   const p=data[idx];
-  const addr=p.address||{};
-  const road=addr.road||'';
-  const number=addr.house_number||'';
-  const city=addr.city||addr.town||addr.village||addr.municipality||'';
-  const postcode=addr.postcode||'';
-  const fullAddr=[road+(number?' '+number:''),postcode,city].filter(Boolean).join(', ');
-  const name=p.name||p.display_name.split(',')[0];
-  const phone=p.extratags&&p.extratags.phone?p.extratags.phone:'';
 
   // Fill hidden fields
-  document.getElementById('rvNewName').value=name;
-  document.getElementById('rvNewPlace').value=city||addr.state||'';
+  document.getElementById('rvNewName').value=p.name;
+  document.getElementById('rvNewPlace').value=p.city||'';
   document.getElementById('rvNewLat').value=p.lat;
   document.getElementById('rvNewLng').value=p.lon;
-  document.getElementById('rvAddress').value=fullAddr;
-  if(phone)document.getElementById('rvPhone').value=phone;
+  document.getElementById('rvAddress').value=p.addr;
+  if(p.phone)document.getElementById('rvPhone').value=p.phone;
 
   // Show selection card
-  document.getElementById('rvSelName').textContent=name;
-  document.getElementById('rvSelAddr').textContent=fullAddr+(phone?' — Tel: '+phone:'');
+  document.getElementById('rvSelName').textContent=p.name;
+  const details=[p.addr,p.phone?'Tel: '+p.phone:'',p.cuisine?'Cucina: '+p.cuisine.replace(/;/g,', '):''].filter(Boolean).join(' — ');
+  document.getElementById('rvSelAddr').textContent=details;
   document.getElementById('rvSelectedPlace').style.display='block';
   document.getElementById('rvSearchPlace').value='';
   results.style.display='none';
