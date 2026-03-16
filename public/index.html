@@ -725,6 +725,7 @@ const DOOM_TRIGGER='piero';
 function launchDoom(){
   if(document.getElementById('doomOverlay'))return;
   const W=640,H=400,FOV=Math.PI/3;
+  // Map: more open layout with corridors connecting all areas
   const MAP=[
     [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
@@ -732,11 +733,11 @@ function launchDoom(){
     [1,0,0,2,2,0,0,0,0,0,0,3,3,0,0,1],
     [1,0,0,2,0,0,0,0,0,0,0,0,3,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,4,4,0,0,4,4,0,0,0,0,1],
-    [1,0,0,0,0,4,0,0,0,0,4,0,0,0,0,1],
+    [1,0,0,0,0,4,0,4,0,4,0,4,0,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,4,0,0,0,0,4,0,0,0,0,1],
-    [1,0,0,0,0,4,4,0,0,4,4,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,4,0,4,0,4,0,4,0,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,0,0,3,0,0,0,0,0,0,0,0,2,0,0,1],
     [1,0,0,3,3,0,0,0,0,0,0,2,2,0,0,1],
@@ -744,9 +745,9 @@ function launchDoom(){
     [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   ];
   const MW=16,MH=16;
-  // Wall colors: [bright, dark] per wall type
   const WC={1:[[100,100,110],[70,70,80]],2:[[60,120,60],[40,90,40]],3:[[50,80,140],[35,60,110]],4:[[140,100,50],[110,75,35]]};
   let px=8,py=2,pa=Math.PI/2,hp=100,ammo=50,kills=0,shooting=0,gameOver=0,won=0,started=0;
+  const startTime=Date.now();let endTime=0;
   const enemies=[
     {x:3.5,y:4.5,hp:3,maxHp:3,alive:1,type:'imp',atk:4,spd:1.5},
     {x:12.5,y:4.5,hp:3,maxHp:3,alive:1,type:'imp',atk:4,spd:1.5},
@@ -770,7 +771,12 @@ function launchDoom(){
   const ctx=cv.getContext('2d');
 
   // Input
-  const onKey=e=>{keys[e.key.toLowerCase()]=e.type==='keydown';if(e.key==='Escape')cleanup();};
+  const onKey=e=>{
+    keys[e.key.toLowerCase()]=e.type==='keydown';
+    if(e.key==='Escape')cleanup();
+    // R to restart when game over
+    if(e.key.toLowerCase()==='r'&&gameOver)restart();
+  };
   const onMouse=e=>{if(document.pointerLockElement)pa+=e.movementX*0.002;};
   const onClick=()=>{if(!document.pointerLockElement){cv.requestPointerLock();started=1;return;}if(started)shoot();};
   document.addEventListener('keydown',onKey);document.addEventListener('keyup',onKey);
@@ -782,6 +788,17 @@ function launchDoom(){
     if(document.pointerLockElement)document.exitPointerLock();ov.remove();gameOver=1;
   }
 
+  function restart(){
+    px=8;py=2;pa=Math.PI/2;hp=100;ammo=50;kills=0;shooting=0;gameOver=0;won=0;started=1;
+    enemies.forEach((e,i)=>{
+      const orig=[
+        {x:3.5,y:4.5,hp:3},{x:12.5,y:4.5,hp:3},{x:7.5,y:7.5,hp:6},{x:8.5,y:8.5,hp:6},
+        {x:3.5,y:12.5,hp:3},{x:12.5,y:12.5,hp:3},{x:8,y:14,hp:10}
+      ];
+      e.x=orig[i].x;e.y=orig[i].y;e.hp=e.maxHp;e.alive=1;
+    });
+  }
+
   function shoot(){
     if(ammo<=0||shooting>3||gameOver)return;
     const now=Date.now();if(now-lastShot<250)return;lastShot=now;shooting=8;ammo--;
@@ -789,9 +806,9 @@ function launchDoom(){
     enemies.forEach(e=>{if(!e.alive)return;
       const dx=e.x-px,dy=e.y-py,d=Math.sqrt(dx*dx+dy*dy);
       let a=Math.atan2(dy,dx)-pa;while(a>Math.PI)a-=2*Math.PI;while(a<-Math.PI)a+=2*Math.PI;
-      if(Math.abs(a)<0.12&&d<bestD){bestD=d;bestE=e;}
+      if(Math.abs(a)<0.15&&d<bestD){bestD=d;bestE=e;}
     });
-    if(bestE&&bestD<14){bestE.hp-=2;if(bestE.hp<=0){bestE.alive=0;kills++;if(kills>=totalE){won=1;gameOver=1;}}}
+    if(bestE&&bestD<14){bestE.hp-=2;if(bestE.hp<=0){bestE.alive=0;kills++;if(kills>=totalE){won=1;gameOver=1;endTime=Date.now();}}}
   }
 
   // DDA Raycaster
@@ -826,16 +843,56 @@ function launchDoom(){
     if(MAP[Math.floor(py+my+r*Math.sign(my))][Math.floor(px)]===0)py+=my;
   }
 
+  // Improved enemy AI with wall-sliding
   function moveEnemies(dt){
     if(gameOver||!started)return;
     enemies.forEach(e=>{if(!e.alive)return;
       const dx=px-e.x,dy=py-e.y,d=Math.sqrt(dx*dx+dy*dy);
-      if(d>0.6){const s=e.spd*dt,nx=dx/d*s,ny=dy/d*s;
-        if(MAP[Math.floor(e.y)][Math.floor(e.x+nx+0.2*Math.sign(nx))]===0)e.x+=nx;
-        if(MAP[Math.floor(e.y+ny+0.2*Math.sign(ny))][Math.floor(e.x)]===0)e.y+=ny;
+      if(d>0.6){
+        const s=e.spd*dt;
+        const nx=dx/d*s,ny=dy/d*s;
+        const cr=0.25; // collision radius
+        const canX=MAP[Math.floor(e.y)][Math.floor(e.x+nx+cr*Math.sign(nx))]===0;
+        const canY=MAP[Math.floor(e.y+ny+cr*Math.sign(ny))][Math.floor(e.x)]===0;
+        if(canX&&canY){e.x+=nx;e.y+=ny;}
+        else if(canX){e.x+=nx;} // wall-slide X
+        else if(canY){e.y+=ny;} // wall-slide Y
+        else{
+          // Try perpendicular directions to get unstuck
+          const perp1x=-dy/d*s,perp1y=dx/d*s;
+          const perp2x=dy/d*s,perp2y=-dx/d*s;
+          // Pick the perpendicular that gets closer to player
+          const d1=Math.hypot(px-(e.x+perp1x),py-(e.y+perp1y));
+          const d2=Math.hypot(px-(e.x+perp2x),py-(e.y+perp2y));
+          const [bx,by]=d1<d2?[perp1x,perp1y]:[perp2x,perp2y];
+          if(MAP[Math.floor(e.y)][Math.floor(e.x+bx+cr*Math.sign(bx))]===0)e.x+=bx;
+          if(MAP[Math.floor(e.y+by+cr*Math.sign(by))][Math.floor(e.x)]===0)e.y+=by;
+        }
       }
-      if(d<0.9&&Math.random()<1.5*dt){hp-=e.atk;dmgFlash=6;if(hp<=0){hp=0;gameOver=1;}}
+      // Enemy attacks when close
+      if(d<0.9&&Math.random()<1.5*dt){hp-=e.atk;dmgFlash=6;if(hp<=0){hp=0;gameOver=1;endTime=Date.now();}}
     });
+  }
+
+  // Enemy projectile system (baron shoots fireballs)
+  const fireballs=[];
+  function updateFireballs(dt){
+    if(gameOver||!started)return;
+    // Baron shoots fireballs periodically
+    enemies.forEach(e=>{
+      if(!e.alive||e.type!=='baron')return;
+      const d=Math.hypot(px-e.x,py-e.y);
+      if(d<10&&d>1.5&&Math.random()<0.4*dt){
+        const ang=Math.atan2(py-e.y,px-e.x);
+        fireballs.push({x:e.x,y:e.y,dx:Math.cos(ang)*4,dy:Math.sin(ang)*4,life:3});
+      }
+    });
+    for(let i=fireballs.length-1;i>=0;i--){
+      const f=fireballs[i];
+      f.x+=f.dx*dt;f.y+=f.dy*dt;f.life-=dt;
+      if(f.life<=0||MAP[Math.floor(f.y)][Math.floor(f.x)]>0){fireballs.splice(i,1);continue;}
+      if(Math.hypot(f.x-px,f.y-py)<0.4){hp-=6;dmgFlash=8;fireballs.splice(i,1);if(hp<=0){hp=0;gameOver=1;endTime=Date.now();}}
+    }
   }
 
   function render(){
@@ -865,6 +922,19 @@ function launchDoom(){
       ctx.fillRect(x,y0,1,lh);
     }
 
+    // Fireballs (render before enemies)
+    fireballs.forEach(f=>{
+      const fdx=f.x-px,fdy=f.y-py,fd=Math.hypot(fdx,fdy);
+      let fa=Math.atan2(fdy,fdx)-pa;while(fa>Math.PI)fa-=2*Math.PI;while(fa<-Math.PI)fa+=2*Math.PI;
+      if(Math.abs(fa)>FOV/2)return;
+      const fsx=W/2+(fa/FOV)*W;
+      const fperp=fd*Math.cos(fa);if(fperp<=0.1)return;
+      const fsz=Math.max(4,H/fperp*0.2);
+      if(zbuf[Math.floor(fsx)]&&zbuf[Math.floor(fsx)]<fperp)return;
+      ctx.fillStyle='#f80';ctx.beginPath();ctx.arc(fsx,H/2,fsz,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#ff0';ctx.beginPath();ctx.arc(fsx,H/2,fsz*0.5,0,Math.PI*2);ctx.fill();
+    });
+
     // Enemies
     const sorted=[...enemies].filter(e=>e.alive).map(e=>{
       const dx=e.x-px,dy=e.y-py;return{...e,dist:Math.sqrt(dx*dx+dy*dy),ang:Math.atan2(dy,dx)};
@@ -876,7 +946,6 @@ function launchDoom(){
       const perp=e.dist*Math.cos(a);if(perp<=0.1)return;
       const sz=H/perp*0.8;
       const sy=H/2-sz/2;
-      // Z-buffer check (sample multiple columns)
       const hw=sz/3;let blocked=0,total=0;
       for(let cx=Math.max(0,Math.floor(sx-hw));cx<Math.min(W,Math.ceil(sx+hw));cx++){total++;if(zbuf[cx]<perp)blocked++;}
       if(total>0&&blocked/total>0.7)return;
@@ -916,11 +985,11 @@ function launchDoom(){
     const wOff=shooting>5?-12:shooting>3?-6:0;
     const bob=started&&!gameOver?Math.sin(Date.now()/150)*2:0;
     const wx=W/2-30,wy=H-100+wOff+bob;
-    ctx.fillStyle='#666';ctx.fillRect(wx+12,wy-20,8,60);// barrel
-    ctx.fillStyle='#555';ctx.fillRect(wx+8,wy+15,16,8);// trigger guard
-    ctx.fillStyle='#777';ctx.fillRect(wx+4,wy+23,24,30);// grip
-    ctx.fillStyle='#888';ctx.fillRect(wx,wy,32,20);// receiver
-    if(shooting>5){// muzzle flash
+    ctx.fillStyle='#666';ctx.fillRect(wx+12,wy-20,8,60);
+    ctx.fillStyle='#555';ctx.fillRect(wx+8,wy+15,16,8);
+    ctx.fillStyle='#777';ctx.fillRect(wx+4,wy+23,24,30);
+    ctx.fillStyle='#888';ctx.fillRect(wx,wy,32,20);
+    if(shooting>5){
       ctx.fillStyle='#ff0';ctx.beginPath();ctx.arc(wx+16,wy-28,14,0,Math.PI*2);ctx.fill();
       ctx.fillStyle='#fa0';ctx.beginPath();ctx.arc(wx+16,wy-22,9,0,Math.PI*2);ctx.fill();
       ctx.fillStyle='#f00';ctx.beginPath();ctx.arc(wx+16,wy-18,5,0,Math.PI*2);ctx.fill();
@@ -942,14 +1011,33 @@ function launchDoom(){
     ctx.fillStyle=hp>60?'#0f0':hp>30?'#ff0':'#f00';ctx.fillText('HP '+hp,16,H-10);
     ctx.fillStyle='#fa0';ctx.fillText('AMMO '+ammo,130,H-10);
     ctx.fillStyle='#fff';ctx.fillText('KILLS '+kills+'/'+totalE,280,H-10);
+    // Enemy compass indicator
+    const aliveE=enemies.filter(e=>e.alive);
+    if(aliveE.length>0&&started&&!gameOver){
+      const nearest=aliveE.reduce((a,b)=>Math.hypot(a.x-px,a.y-py)<Math.hypot(b.x-px,b.y-py)?a:b);
+      const nd=Math.hypot(nearest.x-px,nearest.y-py);
+      ctx.fillStyle=nd<3?'#f44':nd<6?'#fa0':'#888';
+      ctx.fillText(nd<3?'!! VICINO !!':nd<6?'> NEMICO <':'~ nemico ~',400,H-10);
+    }
     ctx.fillStyle='#f33';ctx.font='bold 14px monospace';ctx.fillText('byte4DOOM',W-110,H-10);
 
-    // Minimap
-    const ms=3;ctx.globalAlpha=0.5;
-    for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){ctx.fillStyle=MAP[y][x]?'#888':'#222';ctx.fillRect(W-54+x*ms,4+y*ms,ms-0.5,ms-0.5);}
-    ctx.globalAlpha=0.9;ctx.fillStyle='#0f0';ctx.fillRect(W-54+px*ms-1,4+py*ms-1,3,3);
-    enemies.forEach(e=>{if(e.alive){ctx.fillStyle='#f00';ctx.fillRect(W-54+e.x*ms-1,4+e.y*ms-1,2,2);}});
-    ctx.globalAlpha=1;
+    // Minimap (bigger for better visibility)
+    const ms=4,mmx=W-72,mmy=4;
+    ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(mmx-2,mmy-2,MW*ms+4,MH*ms+4);
+    for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){ctx.fillStyle=MAP[y][x]?'#666':'#1a1a1a';ctx.fillRect(mmx+x*ms,mmy+y*ms,ms-0.5,ms-0.5);}
+    // Player on minimap with direction indicator
+    ctx.fillStyle='#0f0';ctx.fillRect(mmx+px*ms-1.5,mmy+py*ms-1.5,3,3);
+    ctx.strokeStyle='#0f0';ctx.lineWidth=1;ctx.beginPath();
+    ctx.moveTo(mmx+px*ms,mmy+py*ms);ctx.lineTo(mmx+px*ms+Math.cos(pa)*6,mmy+py*ms+Math.sin(pa)*6);ctx.stroke();
+    // Enemies on minimap (blinking red dots)
+    const blink=Math.sin(Date.now()/200)>0;
+    enemies.forEach(e=>{if(e.alive){
+      ctx.fillStyle=e.type==='baron'?'#f0f':'#f00';
+      const dotSz=e.type==='baron'?3:2;
+      if(blink||e.type==='baron')ctx.fillRect(mmx+e.x*ms-dotSz/2,mmy+e.y*ms-dotSz/2,dotSz,dotSz);
+    }});
+    // Fireballs on minimap
+    ctx.fillStyle='#f80';fireballs.forEach(f=>{ctx.fillRect(mmx+f.x*ms-1,mmy+f.y*ms-1,2,2);});
 
     // Title screen
     if(!started){
@@ -961,15 +1049,59 @@ function launchDoom(){
       ctx.textAlign='left';
     }
 
-    // End screen
+    // End screen with stats
     if(gameOver){
-      ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
+      ctx.fillStyle='rgba(0,0,0,0.8)';ctx.fillRect(0,0,W,H);
       ctx.textAlign='center';
-      ctx.fillStyle=won?'#0f0':'#f00';ctx.font='bold 44px monospace';
-      ctx.fillText(won?'HAI VINTO!':'SEI MORTO',W/2,H/2-20);
-      ctx.fillStyle='#fff';ctx.font='18px monospace';
-      ctx.fillText(won?'Piero ti offre uno snack gratis!':'Piero ti ha sopraffatto...',W/2,H/2+20);
-      ctx.fillText('Premi ESC per uscire',W/2,H/2+55);
+
+      if(won){
+        // Victory screen
+        const elapsed=Math.floor((endTime-startTime)/1000);
+        const mins=Math.floor(elapsed/60);const secs=elapsed%60;
+
+        // Animated glow effect
+        const glow=Math.sin(Date.now()/300)*0.3+0.7;
+        ctx.fillStyle=`rgba(0,255,0,${glow})`;ctx.font='bold 48px monospace';
+        ctx.fillText('HAI VINTO!',W/2,H/2-80);
+
+        ctx.fillStyle='#fa0';ctx.font='bold 20px monospace';
+        ctx.fillText("Piero's Snack e' stato vendicato!",W/2,H/2-40);
+
+        // Stats box
+        ctx.fillStyle='rgba(0,50,0,0.5)';
+        ctx.fillRect(W/2-160,H/2-20,320,120);
+        ctx.strokeStyle='#0f0';ctx.lineWidth=2;ctx.strokeRect(W/2-160,H/2-20,320,120);
+
+        ctx.fillStyle='#fff';ctx.font='16px monospace';
+        ctx.fillText('TEMPO: '+mins+'m '+String(secs).padStart(2,'0')+'s',W/2,H/2+10);
+        ctx.fillText('HP RIMASTI: '+hp+'/100',W/2,H/2+35);
+        ctx.fillText('MUNIZIONI: '+ammo+'/50',W/2,H/2+60);
+
+        // Rating
+        let rating='';let ratingCol='#fff';
+        if(hp>=80&&elapsed<60){rating='S — LEGGENDA!';ratingCol='#f0f';}
+        else if(hp>=60&&elapsed<90){rating='A — ECCELLENTE';ratingCol='#0ff';}
+        else if(hp>=40){rating='B — BRAVO';ratingCol='#0f0';}
+        else if(hp>=20){rating='C — DISCRETO';ratingCol='#ff0';}
+        else{rating='D — SOPRAVVISSUTO';ratingCol='#f80';}
+        ctx.fillStyle=ratingCol;ctx.font='bold 20px monospace';
+        ctx.fillText('GRADO: '+rating,W/2,H/2+90);
+
+        ctx.fillStyle='#aaa';ctx.font='14px monospace';
+        ctx.fillText('Premi R per rigiocare | ESC per uscire',W/2,H/2+125);
+      }else{
+        // Death screen
+        const deathPulse=Math.sin(Date.now()/400)*0.3+0.7;
+        ctx.fillStyle=`rgba(255,0,0,${deathPulse})`;ctx.font='bold 52px monospace';
+        ctx.fillText('SEI MORTO',W/2,H/2-40);
+
+        ctx.fillStyle='#aaa';ctx.font='20px monospace';
+        ctx.fillText('Piero ti ha sopraffatto...',W/2,H/2+10);
+        ctx.fillStyle='#fff';ctx.font='16px monospace';
+        ctx.fillText('Nemici uccisi: '+kills+'/'+totalE,W/2,H/2+45);
+        ctx.fillStyle='#aaa';ctx.font='14px monospace';
+        ctx.fillText('Premi R per rigiocare | ESC per uscire',W/2,H/2+80);
+      }
       ctx.textAlign='left';
     }
   }
@@ -978,7 +1110,7 @@ function launchDoom(){
   function loop(t){
     if(!document.getElementById('doomOverlay'))return;
     const dt=Math.min((t-lastTime)/1000,0.05);lastTime=t;
-    movePlayer(dt);moveEnemies(dt);render();
+    movePlayer(dt);moveEnemies(dt);updateFireballs(dt);render();
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(t=>{lastTime=t;loop(t);});
