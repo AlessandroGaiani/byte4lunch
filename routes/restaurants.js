@@ -222,20 +222,21 @@ router.post('/', authMiddleware, requireRole('admin', 'reviewer'), async (req, r
   }
 });
 
-// PATCH /api/restaurants/:id — aggiorna indirizzo/telefono (reviewer o admin)
+// PATCH /api/restaurants/:id — aggiorna indirizzo/telefono/tag (reviewer o admin)
 router.patch('/:id', authMiddleware, requireRole('admin', 'reviewer'), async (req, res) => {
   try {
-    const { address, phone, lat, lng } = req.body;
+    const { address, phone, lat, lng, tags } = req.body;
     const rest = await db.get('SELECT * FROM restaurants WHERE id = ? AND active = 1', [req.params.id]);
     if (!rest) return res.status(404).json({ error: 'Non trovato' });
 
     await db.run(
-      `UPDATE restaurants SET address=?, phone=?, lat=?, lng=? WHERE id=?`,
+      `UPDATE restaurants SET address=?, phone=?, lat=?, lng=?, tags=? WHERE id=?`,
       [
         address !== undefined ? (address || null) : rest.address,
         phone !== undefined ? (phone || null) : rest.phone,
         lat !== undefined ? (lat || null) : rest.lat,
         lng !== undefined ? (lng || null) : rest.lng,
+        tags !== undefined ? JSON.stringify(tags) : rest.tags,
         req.params.id
       ]
     );
