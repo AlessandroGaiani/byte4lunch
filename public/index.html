@@ -49,6 +49,10 @@ nav{position:sticky;top:0;z-index:100;background:var(--dark);display:flex;align-
 .card-score.empty{background:#ddd;color:#888}
 .tag{font-size:.72rem;padding:3px 9px;border-radius:100px;background:var(--cream);color:var(--gray);font-family:'Space Mono',monospace}
 .card-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.tag-pick-group{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.tag-pick{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:100px;border:1.5px solid var(--border);background:white;cursor:pointer;font-size:.78rem;font-family:'Space Mono',monospace;color:var(--gray);transition:all .15s;user-select:none;-webkit-user-select:none}
+.tag-pick:hover{border-color:var(--green);color:var(--green-dark)}
+.tag-pick.active{background:var(--green);border-color:var(--green);color:white}
 .detail-header{background:var(--dark);padding:28px 20px 24px}
 .back-btn{display:inline-flex;align-items:center;gap:6px;color:var(--green);font-size:.85rem;cursor:pointer;font-family:'Space Mono',monospace;background:none;border:none;margin-bottom:16px}
 .back-btn:hover{color:var(--green-light)}
@@ -240,6 +244,18 @@ nav{position:sticky;top:0;z-index:100;background:var(--dark);display:flex;align-
         <label class="checkbox-row"><input type="checkbox" id="rvCaffe"> <span>☕ Caffè incluso / ottimo</span></label>
       </div>
     </div>
+    <div class="form-group">
+      <label class="form-label">Tag ristorante <span style="font-size:.7rem;font-weight:400;text-transform:none;letter-spacing:0">(aggiorna le caratteristiche del locale)</span></label>
+      <div class="tag-pick-group" id="rvTagGroup">
+        <div class="tag-pick" onclick="toggleTag(this)" data-tag="menu fisso">🍽️ Menu fisso</div>
+        <div class="tag-pick" onclick="toggleTag(this)" data-tag="opzioni vegane">🌱 Opzioni vegane</div>
+        <div class="tag-pick" onclick="toggleTag(this)" data-tag="opzioni vegetariane">🥦 Vegetariane</div>
+        <div class="tag-pick" onclick="toggleTag(this)" data-tag="gluten free">🌾 Gluten free</div>
+        <div class="tag-pick" onclick="toggleTag(this)" data-tag="delivery disponibile">🛵 Delivery</div>
+        <div class="tag-pick" onclick="toggleTag(this)" data-tag="prenotazione consigliata">📅 Prenotazione</div>
+        <div class="tag-pick" onclick="toggleTag(this)" data-tag="pet friendly">🐾 Pet friendly</div>
+      </div>
+    </div>
     <div class="form-group"><label class="form-label">Nota / commento</label><textarea class="form-textarea" id="rvNota" placeholder="Com'era? Torneresti?"></textarea></div>
     <div class="error-msg" id="rvError"></div>
     <button class="btn btn-primary" style="width:100%;padding:13px" id="rvSubmit" onclick="submitReview()">Pubblica recensione</button>
@@ -411,6 +427,7 @@ function selectPlace(idx){
 
   // Deselect existing restaurant
   document.getElementById('rvRistorante').value='';
+  setTags([]);
 }
 function clearPlaceSelection(){
   document.getElementById('rvSelectedPlace').style.display='none';
@@ -422,6 +439,9 @@ function clearPlaceSelection(){
   document.getElementById('rvPhone').value='';
   document.getElementById('rvSearchPlace').value='';
 }
+function toggleTag(el){el.classList.toggle('active');}
+function getSelectedTags(){return[...document.querySelectorAll('#rvTagGroup .tag-pick.active')].map(el=>el.dataset.tag);}
+function setTags(arr){document.querySelectorAll('#rvTagGroup .tag-pick').forEach(el=>{el.classList.toggle('active',(arr||[]).includes(el.dataset.tag));});}
 function enableNearMe(){
   if(!navigator.geolocation){toast('Geolocalizzazione non supportata dal browser');return;}
   const btn=document.getElementById('nearMeBtn');btn.textContent='📍 Rilevamento…';btn.disabled=true;
@@ -474,10 +494,10 @@ function goBack(){showPage(prevPage||'list');}
 function toggleMenu(){document.getElementById('navActions').classList.toggle('open');}
 async function onRestaurantSelect(){
   const rid=parseInt(document.getElementById('rvRistorante').value);
-  if(!rid){document.getElementById('rvAddress').value='';document.getElementById('rvPhone').value='';return;}
+  if(!rid){document.getElementById('rvAddress').value='';document.getElementById('rvPhone').value='';setTags([]);return;}
   // Clear new restaurant search if user picks existing
   clearPlaceSelection();
-  try{const r=await api('GET','/restaurants/'+rid);document.getElementById('rvAddress').value=r.address||'';document.getElementById('rvPhone').value=r.phone||'';}catch{}
+  try{const r=await api('GET','/restaurants/'+rid);document.getElementById('rvAddress').value=r.address||'';document.getElementById('rvPhone').value=r.phone||'';setTags(r.tags||[]);}catch{}
 }
 
 async function renderHome(){
@@ -716,6 +736,7 @@ async function renderNewReview(){
   document.getElementById('rvDate').value=new Date().toISOString().split('T')[0];
   ['rvNota','rvNewName','rvNewPlace','rvAddress','rvPhone','rvNewLat','rvNewLng','rvSearchPlace'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('rvSimpatia').checked=false;document.getElementById('rvCaffe').checked=false;
+  setTags([]);
   document.getElementById('rvError').style.display='none';
   document.getElementById('rvSelectedPlace').style.display='none';
   document.getElementById('rvSearchResults').style.display='none';
@@ -742,8 +763,9 @@ async function submitReview(){
   const rvLat=parseFloat(document.getElementById('rvNewLat').value)||null;
   const rvLng=parseFloat(document.getElementById('rvNewLng').value)||null;
   try{
-    if(!rid&&newName){const rest=await api('POST','/restaurants',{name:newName,place:document.getElementById('rvNewPlace').value.trim()||'—',address:rvAddr||null,phone:rvPh||null,lat:rvLat,lng:rvLng,tags:['menu fisso']});rid=rest.id;}
-    else if(rid&&(rvAddr||rvPh)){try{await api('PATCH','/restaurants/'+rid,{...(rvAddr&&{address:rvAddr}),...(rvPh&&{phone:rvPh})});}catch{}}
+    const rvTags=getSelectedTags();
+    if(!rid&&newName){const rest=await api('POST','/restaurants',{name:newName,place:document.getElementById('rvNewPlace').value.trim()||'—',address:rvAddr||null,phone:rvPh||null,lat:rvLat,lng:rvLng,tags:rvTags});rid=rest.id;}
+    else if(rid){try{await api('PATCH','/restaurants/'+rid,{...(rvAddr&&{address:rvAddr}),...(rvPh&&{phone:rvPh}),tags:rvTags});}catch{}}
     await api('POST','/reviews',{restaurant_id:rid,visit_date:document.getElementById('rvDate').value,qualita:reviewScores.qualita,velocita:reviewScores.velocita,prezzo:reviewScores.prezzo,bonus_simpatia:document.getElementById('rvSimpatia').checked,bonus_caffe:document.getElementById('rvCaffe').checked,note:document.getElementById('rvNota').value.trim()});
     toast('Recensione pubblicata! 🎉');
     // Easter egg check
@@ -884,12 +906,12 @@ function launchDoom(){
   let px=8,py=2,pa=Math.PI/2,hp=100,ammo=50,kills=0,shooting=0,gameOver=0,won=0,started=0;
   const startTime=Date.now();let endTime=0;
   const enemies=[
-    {x:3.5,y:4.5,hp:3,maxHp:3,alive:1,type:'imp',atk:4,spd:1.5},
-    {x:12.5,y:4.5,hp:3,maxHp:3,alive:1,type:'imp',atk:4,spd:1.5},
+    {x:4.5,y:4.5,hp:3,maxHp:3,alive:1,type:'imp',atk:4,spd:1.5},
+    {x:11.5,y:4.5,hp:3,maxHp:3,alive:1,type:'imp',atk:4,spd:1.5},
     {x:7.5,y:7.5,hp:6,maxHp:6,alive:1,type:'demon',atk:8,spd:1.2},
     {x:8.5,y:8.5,hp:6,maxHp:6,alive:1,type:'demon',atk:8,spd:1.2},
-    {x:3.5,y:12.5,hp:3,maxHp:3,alive:1,type:'imp',atk:4,spd:1.5},
-    {x:12.5,y:12.5,hp:3,maxHp:3,alive:1,type:'imp',atk:4,spd:1.5},
+    {x:4.5,y:12.5,hp:3,maxHp:3,alive:1,type:'imp',atk:4,spd:1.5},
+    {x:11.5,y:12.5,hp:3,maxHp:3,alive:1,type:'imp',atk:4,spd:1.5},
     {x:8,y:14,hp:10,maxHp:10,alive:1,type:'baron',atk:12,spd:0.8},
   ];
   const totalE=enemies.length;
@@ -927,8 +949,8 @@ function launchDoom(){
     px=8;py=2;pa=Math.PI/2;hp=100;ammo=50;kills=0;shooting=0;gameOver=0;won=0;started=1;
     enemies.forEach((e,i)=>{
       const orig=[
-        {x:3.5,y:4.5,hp:3},{x:12.5,y:4.5,hp:3},{x:7.5,y:7.5,hp:6},{x:8.5,y:8.5,hp:6},
-        {x:3.5,y:12.5,hp:3},{x:12.5,y:12.5,hp:3},{x:8,y:14,hp:10}
+        {x:4.5,y:4.5,hp:3},{x:11.5,y:4.5,hp:3},{x:7.5,y:7.5,hp:6},{x:8.5,y:8.5,hp:6},
+        {x:4.5,y:12.5,hp:3},{x:11.5,y:12.5,hp:3},{x:8,y:14,hp:10}
       ];
       e.x=orig[i].x;e.y=orig[i].y;e.hp=e.maxHp;e.alive=1;
     });
