@@ -347,13 +347,7 @@ function initPlaceSearch(){
 
 async function searchPlaces(query){
   const results=document.getElementById('rvSearchResults');
-  try{
-    const res=await fetch(API+'/restaurants/search-places?q='+encodeURIComponent(query));
-    const data=await res.json();
-    if(!data.length){
-      results.innerHTML='<div class="place-searching">Nessun risultato. Prova con un altro nome o aggiungi la città (es. "pizzeria quarto d\'altino")</div>';
-      return;
-    }
+  function renderPlaces(data){
     results._placeData=data;
     results.innerHTML=data.map((p,i)=>{
       return `<div class="place-result" tabindex="0" onclick="selectPlace(${i})" data-idx="${i}">
@@ -366,6 +360,29 @@ async function searchPlaces(query){
         </div>
       </div>`;
     }).join('');
+  }
+  // Try server-side search first (Overpass + Nominatim)
+  try{
+    const res=await fetch(API+'/restaurants/search-places?q='+encodeURIComponent(query));
+    const data=await res.json();
+    if(data.length){renderPlaces(data);return;}
+  }catch(e){}
+  // Fallback: Photon geocoder (CORS-enabled, no User-Agent required)
+  try{
+    const pr=await fetch('https://photon.komoot.io/api/?q='+encodeURIComponent(query)+'&limit=10&lang=it&lat=45.58&lon=12.35');
+    const pd=await pr.json();
+    const typeLabels={restaurant:'Ristorante',bar:'Bar',cafe:'Caffetteria',fast_food:'Fast food',pub:'Pub',bakery:'Panetteria',pastry:'Pasticceria',biergarten:'Birreria',deli:'Gastronomia'};
+    const mapped=(pd.features||[]).map(f=>{
+      const p=f.properties;
+      const [lon,lat]=f.geometry.coordinates;
+      const street=p.street?(p.street+(p.housenumber?' '+p.housenumber:'')):'';
+      const city=p.city||p.town||p.village||p.municipality||'';
+      const addr=[street,p.postcode,city].filter(Boolean).join(', ');
+      const t=p.osm_value||p.type||'';
+      return {name:p.name||query,addr,city,lat,lon,phone:'',cuisine:p.cuisine||'',type:typeLabels[t]||t.replace(/_/g,' '),source:'osm'};
+    }).filter(f=>f.name&&f.lat&&f.lon);
+    if(!mapped.length){results.innerHTML=`<div class="place-searching">Nessun risultato. Prova con nome più specifico (es. "Trattoria Da Mario Quarto d'Altino")</div>`;return;}
+    renderPlaces(mapped);
   }catch(e){
     results.innerHTML='<div class="place-searching">Errore di ricerca. Riprova.</div>';
   }
