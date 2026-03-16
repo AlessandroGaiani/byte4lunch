@@ -79,12 +79,12 @@ router.get('/:id', async (req, res) => {
 // POST /api/restaurants — reviewer o admin
 router.post('/', authMiddleware, requireRole('admin', 'reviewer'), async (req, res) => {
   try {
-    const { name, place, address, phone, tags } = req.body;
+    const { name, place, address, phone, tags, lat, lng } = req.body;
     if (!name || !place) return res.status(400).json({ error: 'Nome e luogo obbligatori' });
 
     const result = await db.run(
-      `INSERT INTO restaurants (name, place, address, phone, tags, added_by) VALUES (?, ?, ?, ?, ?, ?)`,
-      [name.trim(), place.trim(), address || null, phone || null, JSON.stringify(tags || ['menu fisso']), req.user.id]
+      `INSERT INTO restaurants (name, place, address, phone, tags, lat, lng, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [name.trim(), place.trim(), address || null, phone || null, JSON.stringify(tags || ['menu fisso']), lat || null, lng || null, req.user.id]
     );
 
     const rest = await db.get('SELECT * FROM restaurants WHERE id = ?', [result.lastInsertRowid]);
@@ -99,15 +99,17 @@ router.post('/', authMiddleware, requireRole('admin', 'reviewer'), async (req, r
 // PATCH /api/restaurants/:id — aggiorna indirizzo/telefono (reviewer o admin)
 router.patch('/:id', authMiddleware, requireRole('admin', 'reviewer'), async (req, res) => {
   try {
-    const { address, phone } = req.body;
+    const { address, phone, lat, lng } = req.body;
     const rest = await db.get('SELECT * FROM restaurants WHERE id = ? AND active = 1', [req.params.id]);
     if (!rest) return res.status(404).json({ error: 'Non trovato' });
 
     await db.run(
-      `UPDATE restaurants SET address=?, phone=? WHERE id=?`,
+      `UPDATE restaurants SET address=?, phone=?, lat=?, lng=? WHERE id=?`,
       [
         address !== undefined ? (address || null) : rest.address,
         phone !== undefined ? (phone || null) : rest.phone,
+        lat !== undefined ? (lat || null) : rest.lat,
+        lng !== undefined ? (lng || null) : rest.lng,
         req.params.id
       ]
     );
