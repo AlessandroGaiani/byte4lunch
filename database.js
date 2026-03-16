@@ -86,8 +86,10 @@ async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_restaurants_place ON restaurants(place);
   `);
 
-  // Migrazione: aggiungi colonna role_request se non esiste
+  // Migrazioni: aggiungi colonne se non esistono
   try { await run('ALTER TABLE users ADD COLUMN role_request TEXT'); } catch(e) { /* già presente */ }
+  try { await run('ALTER TABLE restaurants ADD COLUMN lat REAL'); } catch(e) { /* già presente */ }
+  try { await run('ALTER TABLE restaurants ADD COLUMN lng REAL'); } catch(e) { /* già presente */ }
 
   // Crea admin iniziale se non esiste
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@omega.it';
