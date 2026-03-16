@@ -30,6 +30,97 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/restaurants/search-places — cerca locali su OpenStreetMap (pubblico)
+router.get('/search-places', async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.length < 2) return res.json([]);
+
+    const results = [];
+
+    // 1) Overpass API: cerca ristoranti/bar/locali per nome nell'area Veneto
+    try {
+      const escapedQ = q.replace(/[\\'"\n\r]/g, ' ');
+      const overpassQuery = `[out:json][timeout:10];(nwr["amenity"~"restaurant|bar|cafe|fast_food|pub|biergarten"]["name"~"${escapedQ}",i](44.9,11.5,46.0,13.0);nwr["shop"~"bakery|pastry|deli"]["name"~"${escapedQ}",i](44.9,11.5,46.0,13.0););out center 15;`;
+      const ovRes = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        body: 'data=' + encodeURIComponent(overpassQuery),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+      const ovData = await ovRes.json();
+      if (ovData.elements) {
+        for (const el of ovData.elements) {
+          const tags = el.tags || {};
+          const lat = el.center ? el.center.lat : el.lat;
+          const lon = el.center ? el.center.lon : el.lon;
+          if (!lat || !lon || !tags.name) continue;
+          const road = tags['addr:street'] || '';
+          const number = tags['addr:housenumber'] || '';
+          const city = tags['addr:city'] || tags['addr:town'] || tags['addr:village'] || '';
+          const postcode = tags['addr:postcode'] || '';
+          const fullAddr = [road + (number ? ' ' + number : ''), postcode, city].filter(Boolean).join(', ');
+          const amenity = tags.amenity || tags.shop || '';
+          const typeLabels = { restaurant: 'Ristorante', bar: 'Bar', cafe: 'Caffetteria', fast_food: 'Fast food', pub: 'Pub', bakery: 'Panetteria', pastry: 'Pasticceria', biergarten: 'Birreria', deli: 'Gastronomia' };
+          results.push({
+            name: tags.name,
+            addr: fullAddr,
+            city,
+            lat, lon,
+            phone: tags.phone || tags['contact:phone'] || '',
+            cuisine: tags.cuisine || '',
+            type: typeLabels[amenity] || amenity.replace(/_/g, ' '),
+            source: 'osm'
+          });
+        }
+      }
+    } catch (e) { console.log('Overpass search error:', e.message); }
+
+    // 2) Nominatim: ricerca più generica come fallback
+    try {
+      const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', Veneto, Italia')}&format=json&addressdetails=1&limit=8&countrycodes=it&extratags=1`;
+      const nomRes = await fetch(nomUrl, {
+        headers: { 'User-Agent': 'byte4lunch/1.0' },
+      });
+      const nomData = await nomRes.json();
+      for (const p of nomData) {
+        const addr = p.address || {};
+        const lat = parseFloat(p.lat);
+        const lon = parseFloat(p.lon);
+        // Evita duplicati
+        const isDupe = results.some(r => r.name.toLowerCase() === (p.name || '').toLowerCase() && Math.abs(r.lat - lat) < 0.001);
+        if (isDupe) continue;
+        const road = addr.road || '';
+        const number = addr.house_number || '';
+        const city = addr.city || addr.town || addr.village || addr.municipality || '';
+        const postcode = addr.postcode || '';
+        const fullAddr = [road + (number ? ' ' + number : ''), postcode, city].filter(Boolean).join(', ');
+        const phone = p.extratags && p.extratags.phone ? p.extratags.phone : '';
+        results.push({
+          name: p.name || p.display_name.split(',')[0],
+          addr: fullAddr || p.display_name.split(',').slice(0, 3).join(', '),
+          city,
+          lat, lon,
+          phone,
+          cuisine: '',
+          type: (p.type || '').replace(/_/g, ' '),
+          source: 'nominatim'
+        });
+      }
+    } catch (e) { console.log('Nominatim search error:', e.message); }
+
+    // Ordina: OSM prima (più precisi per locali)
+    results.sort((a, b) => {
+      if (a.source !== b.source) return a.source === 'osm' ? -1 : 1;
+      return 0;
+    });
+
+    res.json(results.slice(0, 12));
+  } catch (e) {
+    console.error('search-places error:', e);
+    res.status(500).json({ error: 'Errore ricerca' });
+  }
+});
+
 // GET /api/restaurants/places — lista luoghi unici (pubblico)
 router.get('/places', async (req, res) => {
   try {
