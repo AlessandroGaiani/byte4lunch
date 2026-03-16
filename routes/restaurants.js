@@ -1,8 +1,44 @@
 const express = require('express');
+const https = require('https');
 const db = require('../database');
 const { authMiddleware, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Helper: HTTP GET con Promise (usa modulo https nativo, funziona su qualsiasi Node)
+function httpGet(url, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), 12000);
+    const req = https.get(url, { headers }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => { clearTimeout(timer); try { resolve(JSON.parse(data)); } catch { reject(new Error('Invalid JSON')); } });
+    });
+    req.on('error', e => { clearTimeout(timer); reject(e); });
+  });
+}
+
+// Helper: HTTP POST con Promise
+function httpPost(url, body, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), 12000);
+    const parsed = new URL(url);
+    const opts = {
+      hostname: parsed.hostname,
+      path: parsed.pathname + parsed.search,
+      method: 'POST',
+      headers: { ...headers, 'Content-Length': Buffer.byteLength(body) }
+    };
+    const req = https.request(opts, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => { clearTimeout(timer); try { resolve(JSON.parse(data)); } catch { reject(new Error('Invalid JSON')); } });
+    });
+    req.on('error', e => { clearTimeout(timer); reject(e); });
+    req.write(body);
+    req.end();
+  });
+}
 
 // GET /api/restaurants  — pubblico
 router.get('/', async (req, res) => {
@@ -37,17 +73,17 @@ router.get('/search-places', async (req, res) => {
     if (!q || q.length < 2) return res.json([]);
 
     const results = [];
+    console.log('[search-places] Query:', q);
 
     // 1) Overpass API: cerca ristoranti/bar/locali per nome nell'area Veneto
     try {
-      const escapedQ = q.replace(/[\\'"\n\r]/g, ' ');
+      const escapedQ = q.replace(/[\\'"\n\r\t]/g, ' ').replace(/[[\]{}()|*+?.^$]/g, '');
       const overpassQuery = `[out:json][timeout:10];(nwr["amenity"~"restaurant|bar|cafe|fast_food|pub|biergarten"]["name"~"${escapedQ}",i](44.9,11.5,46.0,13.0);nwr["shop"~"bakery|pastry|deli"]["name"~"${escapedQ}",i](44.9,11.5,46.0,13.0););out center 15;`;
-      const ovRes = await fetch('https://overpass-api.de/api/interpreter', {
-        method: 'POST',
-        body: 'data=' + encodeURIComponent(overpassQuery),
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      const postBody = 'data=' + encodeURIComponent(overpassQuery);
+      const ovData = await httpPost('https://overpass-api.de/api/interpreter', postBody, {
+        'Content-Type': 'application/x-www-form-urlencoded'
       });
-      const ovData = await ovRes.json();
+      console.log('[search-places] Overpass returned', (ovData.elements || []).length, 'elements');
       if (ovData.elements) {
         for (const el of ovData.elements) {
           const tags = el.tags || {};
@@ -73,21 +109,19 @@ router.get('/search-places', async (req, res) => {
           });
         }
       }
-    } catch (e) { console.log('Overpass search error:', e.message); }
+    } catch (e) { console.log('[search-places] Overpass error:', e.message); }
 
     // 2) Nominatim: ricerca più generica come fallback
     try {
-      const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', Veneto, Italia')}&format=json&addressdetails=1&limit=8&countrycodes=it&extratags=1`;
-      const nomRes = await fetch(nomUrl, {
-        headers: { 'User-Agent': 'byte4lunch/1.0' },
-      });
-      const nomData = await nomRes.json();
+      const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&addressdetails=1&limit=8&countrycodes=it&extratags=1&viewbox=11.5,44.9,13.0,46.0&bounded=0`;
+      const nomData = await httpGet(nomUrl, { 'User-Agent': 'byte4lunch/1.0' });
+      console.log('[search-places] Nominatim returned', nomData.length, 'results');
       for (const p of nomData) {
         const addr = p.address || {};
         const lat = parseFloat(p.lat);
         const lon = parseFloat(p.lon);
         // Evita duplicati
-        const isDupe = results.some(r => r.name.toLowerCase() === (p.name || '').toLowerCase() && Math.abs(r.lat - lat) < 0.001);
+        const isDupe = results.some(r => r.name && r.name.toLowerCase() === (p.name || '').toLowerCase() && Math.abs(r.lat - lat) < 0.002);
         if (isDupe) continue;
         const road = addr.road || '';
         const number = addr.house_number || '';
@@ -106,7 +140,7 @@ router.get('/search-places', async (req, res) => {
           source: 'nominatim'
         });
       }
-    } catch (e) { console.log('Nominatim search error:', e.message); }
+    } catch (e) { console.log('[search-places] Nominatim error:', e.message); }
 
     // Ordina: OSM prima (più precisi per locali)
     results.sort((a, b) => {
@@ -114,9 +148,10 @@ router.get('/search-places', async (req, res) => {
       return 0;
     });
 
+    console.log('[search-places] Returning', results.length, 'total results');
     res.json(results.slice(0, 12));
   } catch (e) {
-    console.error('search-places error:', e);
+    console.error('[search-places] Fatal error:', e);
     res.status(500).json({ error: 'Errore ricerca' });
   }
 });
