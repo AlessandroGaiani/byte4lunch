@@ -81,6 +81,13 @@ nav{position:sticky;top:0;z-index:100;background:var(--dark);display:flex;align-
 .form-textarea{min-height:90px;resize:vertical}
 .checkbox-row{display:flex;align-items:center;gap:10px}
 .checkbox-row input{width:18px;height:18px;accent-color:var(--green)}
+.place-result{padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s}
+.place-result:hover,.place-result:focus{background:rgba(107,191,62,.1)}
+.place-result:last-child{border-bottom:none;border-radius:0 0 12px 12px}
+.place-result-name{font-weight:600;color:var(--dark);font-size:.92rem}
+.place-result-addr{font-size:.8rem;color:var(--text-light);margin-top:2px}
+.place-result-type{display:inline-block;font-size:.7rem;padding:2px 6px;border-radius:4px;background:rgba(107,191,62,.1);color:var(--green-dark);margin-top:3px}
+.place-searching{padding:14px;text-align:center;color:var(--text-light);font-size:.85rem}
 .glob-picker{display:flex;gap:6px}
 .glob-pick{cursor:pointer;opacity:.25;transition:opacity .15s,transform .15s;filter:grayscale(1)}
 .glob-pick.active{opacity:1;filter:none;transform:scale(1.05)}
@@ -195,16 +202,31 @@ nav{position:sticky;top:0;z-index:100;background:var(--dark);display:flex;align-
     <div class="form-title">Nuova recensione</div>
     <div class="form-group"><label class="form-label">Ristorante esistente</label><select class="form-select" id="rvRistorante" onchange="onRestaurantSelect()"><option value="">Seleziona...</option></select></div>
     <div class="form-group">
-      <label class="form-label">— oppure aggiungi nuovo ristorante —</label>
-      <input class="form-input" id="rvNewName" placeholder="Nome ristorante">
-      <input class="form-input" style="margin-top:8px" id="rvNewPlace" placeholder="Luogo / città">
+      <label class="form-label">— oppure cerca nuovo ristorante —</label>
+      <div style="position:relative">
+        <input class="form-input" id="rvSearchPlace" placeholder="Cerca ristorante... es. Pizzeria Da Mario, Quarto d'Altino" autocomplete="off">
+        <div id="rvSearchResults" style="position:absolute;top:100%;left:0;right:0;z-index:100;background:var(--bg);border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;max-height:240px;overflow-y:auto;display:none;box-shadow:0 8px 24px rgba(0,0,0,.12)"></div>
+      </div>
+      <div id="rvSelectedPlace" style="display:none;margin-top:10px;padding:12px;background:rgba(107,191,62,.08);border:1px solid rgba(107,191,62,.3);border-radius:10px">
+        <div style="display:flex;justify-content:space-between;align-items:start">
+          <div>
+            <strong id="rvSelName" style="color:var(--green-dark)"></strong><br>
+            <span id="rvSelAddr" style="font-size:.85rem;color:var(--text-light)"></span>
+          </div>
+          <button type="button" onclick="clearPlaceSelection()" style="background:none;border:none;font-size:1.1rem;cursor:pointer;padding:4px;color:var(--text-light)">✕</button>
+        </div>
+      </div>
+      <input type="hidden" id="rvNewName">
+      <input type="hidden" id="rvNewPlace">
+      <input type="hidden" id="rvNewLat">
+      <input type="hidden" id="rvNewLng">
     </div>
     <div class="form-group">
-      <label class="form-label">Indirizzo <span style="font-size:.7rem;font-weight:400;text-transform:none;letter-spacing:0">(viene salvato nel ristorante)</span></label>
+      <label class="form-label">Indirizzo <span style="font-size:.7rem;font-weight:400;text-transform:none;letter-spacing:0">(compilato automaticamente, modificabile)</span></label>
       <input class="form-input" id="rvAddress" placeholder="Via Roma 12, Città">
     </div>
     <div class="form-group">
-      <label class="form-label">Telefono <span style="font-size:.7rem;font-weight:400;text-transform:none;letter-spacing:0">(viene salvato nel ristorante)</span></label>
+      <label class="form-label">Telefono <span style="font-size:.7rem;font-weight:400;text-transform:none;letter-spacing:0">(opzionale)</span></label>
       <input class="form-input" id="rvPhone" placeholder="+39 041 123456" type="tel">
     </div>
     <div class="form-group"><label class="form-label">Data visita</label><input class="form-input" type="date" id="rvDate"></div>
@@ -304,6 +326,100 @@ async function geocodePlace(place){
   return null;
 }
 function fmtDist(km){return km<1?(Math.round(km*1000)+'m'):(km.toFixed(1)+'km');}
+
+// ── Ricerca ristoranti con Nominatim ─────────────────────
+let placeSearchTimer=null;
+function initPlaceSearch(){
+  const input=document.getElementById('rvSearchPlace');
+  const results=document.getElementById('rvSearchResults');
+  if(!input)return;
+  input.addEventListener('input',()=>{
+    clearTimeout(placeSearchTimer);
+    const q=input.value.trim();
+    if(q.length<3){results.style.display='none';return;}
+    results.innerHTML='<div class="place-searching">Ricerca in corso...</div>';
+    results.style.display='block';
+    placeSearchTimer=setTimeout(()=>searchPlaces(q),500);
+  });
+  input.addEventListener('focus',()=>{if(results.children.length>0&&input.value.trim().length>=3)results.style.display='block';});
+  document.addEventListener('click',e=>{if(!e.target.closest('#rvSearchPlace')&&!e.target.closest('#rvSearchResults'))results.style.display='none';});
+}
+async function searchPlaces(query){
+  const results=document.getElementById('rvSearchResults');
+  try{
+    // Cerca ristoranti/bar/locali vicino a Quarto d'Altino (Veneto)
+    const bbox='12.0,45.3,12.8,45.7'; // area Venezia/Treviso
+    const url=`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=8&countrycodes=it&viewbox=${bbox}&bounded=0&extratags=1`;
+    const r=await fetch(url,{headers:{'User-Agent':'byte4lunch/1.0'}});
+    const data=await r.json();
+    if(!data.length){
+      results.innerHTML='<div class="place-searching">Nessun risultato. Prova con parole diverse.</div>';
+      return;
+    }
+    results.innerHTML=data.map((p,i)=>{
+      const addr=p.address||{};
+      const road=addr.road||'';
+      const number=addr.house_number||'';
+      const city=addr.city||addr.town||addr.village||addr.municipality||'';
+      const postcode=addr.postcode||'';
+      const fullAddr=[road+(number?' '+number:''),postcode,city].filter(Boolean).join(', ');
+      const displayName=p.display_name.split(',').slice(0,3).join(',');
+      const type=p.type||p.class||'';
+      const phone=p.extratags&&p.extratags.phone?p.extratags.phone:'';
+      const name=p.name||p.display_name.split(',')[0];
+      return `<div class="place-result" tabindex="0" onclick="selectPlace(${i})" data-idx="${i}">
+        <div class="place-result-name">${esc(name)}</div>
+        <div class="place-result-addr">📍 ${esc(fullAddr||displayName)}</div>
+        ${type?`<span class="place-result-type">${esc(type.replace(/_/g,' '))}</span>`:''}
+      </div>`;
+    }).join('');
+    // Store data for selection
+    results._placeData=data;
+  }catch(e){
+    results.innerHTML='<div class="place-searching">Errore di connessione. Riprova.</div>';
+  }
+}
+function selectPlace(idx){
+  const results=document.getElementById('rvSearchResults');
+  const data=results._placeData;if(!data||!data[idx])return;
+  const p=data[idx];
+  const addr=p.address||{};
+  const road=addr.road||'';
+  const number=addr.house_number||'';
+  const city=addr.city||addr.town||addr.village||addr.municipality||'';
+  const postcode=addr.postcode||'';
+  const fullAddr=[road+(number?' '+number:''),postcode,city].filter(Boolean).join(', ');
+  const name=p.name||p.display_name.split(',')[0];
+  const phone=p.extratags&&p.extratags.phone?p.extratags.phone:'';
+
+  // Fill hidden fields
+  document.getElementById('rvNewName').value=name;
+  document.getElementById('rvNewPlace').value=city||addr.state||'';
+  document.getElementById('rvNewLat').value=p.lat;
+  document.getElementById('rvNewLng').value=p.lon;
+  document.getElementById('rvAddress').value=fullAddr;
+  if(phone)document.getElementById('rvPhone').value=phone;
+
+  // Show selection card
+  document.getElementById('rvSelName').textContent=name;
+  document.getElementById('rvSelAddr').textContent=fullAddr+(phone?' — Tel: '+phone:'');
+  document.getElementById('rvSelectedPlace').style.display='block';
+  document.getElementById('rvSearchPlace').value='';
+  results.style.display='none';
+
+  // Deselect existing restaurant
+  document.getElementById('rvRistorante').value='';
+}
+function clearPlaceSelection(){
+  document.getElementById('rvSelectedPlace').style.display='none';
+  document.getElementById('rvNewName').value='';
+  document.getElementById('rvNewPlace').value='';
+  document.getElementById('rvNewLat').value='';
+  document.getElementById('rvNewLng').value='';
+  document.getElementById('rvAddress').value='';
+  document.getElementById('rvPhone').value='';
+  document.getElementById('rvSearchPlace').value='';
+}
 function enableNearMe(){
   if(!navigator.geolocation){toast('Geolocalizzazione non supportata dal browser');return;}
   const btn=document.getElementById('nearMeBtn');btn.textContent='📍 Rilevamento…';btn.disabled=true;
@@ -357,6 +473,8 @@ function toggleMenu(){document.getElementById('navActions').classList.toggle('op
 async function onRestaurantSelect(){
   const rid=parseInt(document.getElementById('rvRistorante').value);
   if(!rid){document.getElementById('rvAddress').value='';document.getElementById('rvPhone').value='';return;}
+  // Clear new restaurant search if user picks existing
+  clearPlaceSelection();
   try{const r=await api('GET','/restaurants/'+rid);document.getElementById('rvAddress').value=r.address||'';document.getElementById('rvPhone').value=r.phone||'';}catch{}
 }
 
@@ -433,22 +551,32 @@ async function renderList(){
     if(ps.length)url+='?'+ps.join('&');
     let data=await api('GET',url);
 
-    // Geocodifica ristoranti senza coordinate salvate
-    const geoData=await Promise.all(data.map(async r=>{
+    // Geocodifica ristoranti senza coordinate salvate (max 3 alla volta per non sovraccaricare Nominatim)
+    const geoData=[];
+    let geoCount=0;
+    for(const r of data){
       let lat=r.lat,lng=r.lng;
-      if(!lat||!lng){
-        const place=r.address?r.address+', '+r.place:r.name+', '+r.place;
-        const coords=await geocodePlace(place);
-        if(coords){lat=coords.lat;lng=coords.lon;
-          // Salva coordinate nel DB (fire and forget)
-          if(currentUser&&['admin','reviewer'].includes(currentUser.role)){
-            try{await api('PATCH','/restaurants/'+r.id,{lat,lng});}catch{}
+      if((!lat||!lng)&&geoCount<3){
+        geoCount++;
+        // Prova prima con indirizzo completo, poi con nome+luogo, poi solo luogo
+        const queries=[
+          r.address?r.address+', '+r.place:null,
+          r.name+', '+r.place,
+          r.place
+        ].filter(Boolean);
+        for(const q of queries){
+          const coords=await geocodePlace(q);
+          if(coords){lat=coords.lat;lng=coords.lon;
+            if(currentUser&&['admin','reviewer'].includes(currentUser.role)){
+              try{await api('PATCH','/restaurants/'+r.id,{lat,lng,address:r.address||null,phone:r.phone||null});}catch{}
+            }
+            break;
           }
         }
       }
       const dist=(userCoords&&lat)?haversine(userCoords.lat,userCoords.lon,lat,lng):null;
-      return{...r,lat,lng,_dist:dist};
-    }));
+      geoData.push({...r,lat,lng,_dist:dist});
+    }
 
     // Ordina per distanza se in modalità "vicino a me"
     if(nearMeMode&&userCoords){
@@ -486,7 +614,7 @@ function renderMap(restaurants){
 
   // Marker personalizzato verde
   const greenIcon=L.divIcon({
-    html:'<div style="background:var(--green,#6BBF3E);width:28px;height:28px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;color:white;font-size:13px;font-weight:700">🍝</div>',
+    html:'<div style="background:#6BBF3E;width:32px;height:32px;border-radius:50%;border:3px solid white;box-shadow:0 3px 8px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:15px;font-weight:700;line-height:1">🍝</div>',
     iconSize:[28,28],iconAnchor:[14,14],popupAnchor:[0,-16],className:''
   });
 
@@ -584,15 +712,18 @@ function goReviewThis(rid){showPage('newReview');setTimeout(()=>{document.getEle
 async function renderNewReview(){
   reviewScores={qualita:0,velocita:0,prezzo:0};
   document.getElementById('rvDate').value=new Date().toISOString().split('T')[0];
-  ['rvNota','rvNewName','rvNewPlace','rvAddress','rvPhone'].forEach(id=>document.getElementById(id).value='');
+  ['rvNota','rvNewName','rvNewPlace','rvAddress','rvPhone','rvNewLat','rvNewLng','rvSearchPlace'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('rvSimpatia').checked=false;document.getElementById('rvCaffe').checked=false;
   document.getElementById('rvError').style.display='none';
+  document.getElementById('rvSelectedPlace').style.display='none';
+  document.getElementById('rvSearchResults').style.display='none';
   try{const rests=await api('GET','/restaurants');const sel=document.getElementById('rvRistorante');
     sel.innerHTML='<option value="">Seleziona un ristorante esistente...</option>'+rests.map(r=>`<option value="${r.id}">${esc(r.name)} — ${esc(r.place)}</option>`).join('');}catch{}
   ['pickQualita','pickVelocita','pickPrezzo'].forEach(pid=>{
     const el=document.getElementById(pid);const field=el.dataset.field;el.innerHTML='';
     for(let i=1;i<=5;i++){const s=document.createElement('span');s.className='glob-pick';s.innerHTML=globo(32,false);s.dataset.val=i;s.onclick=()=>setGlob(field,i);el.appendChild(s);}
   });
+  initPlaceSearch();
 }
 function setGlob(field,val){reviewScores[field]=val;const pid='pick'+field.charAt(0).toUpperCase()+field.slice(1);
   document.querySelectorAll(`#${pid} .glob-pick`).forEach((el,i)=>{el.classList.toggle('active',i<val);el.innerHTML=globo(32,i<val);});}
@@ -601,13 +732,15 @@ async function submitReview(){
   const errEl=document.getElementById('rvError');errEl.style.display='none';
   let rid=parseInt(document.getElementById('rvRistorante').value);
   const newName=document.getElementById('rvNewName').value.trim();
-  if(!rid&&!newName){errEl.textContent='Seleziona o inserisci un ristorante';errEl.style.display='block';return;}
+  if(!rid&&!newName){errEl.textContent='Seleziona un ristorante esistente o cercane uno nuovo';errEl.style.display='block';return;}
   if(!reviewScores.qualita||!reviewScores.velocita||!reviewScores.prezzo){errEl.textContent='Assegna i globi per tutti i criteri';errEl.style.display='block';return;}
   const btn=document.getElementById('rvSubmit');btn.disabled=true;btn.textContent='Invio…';
   const rvAddr=document.getElementById('rvAddress').value.trim();
   const rvPh=document.getElementById('rvPhone').value.trim();
+  const rvLat=parseFloat(document.getElementById('rvNewLat').value)||null;
+  const rvLng=parseFloat(document.getElementById('rvNewLng').value)||null;
   try{
-    if(!rid&&newName){const rest=await api('POST','/restaurants',{name:newName,place:document.getElementById('rvNewPlace').value.trim()||'—',address:rvAddr||null,phone:rvPh||null,tags:['menu fisso']});rid=rest.id;}
+    if(!rid&&newName){const rest=await api('POST','/restaurants',{name:newName,place:document.getElementById('rvNewPlace').value.trim()||'—',address:rvAddr||null,phone:rvPh||null,lat:rvLat,lng:rvLng,tags:['menu fisso']});rid=rest.id;}
     else if(rid&&(rvAddr||rvPh)){try{await api('PATCH','/restaurants/'+rid,{...(rvAddr&&{address:rvAddr}),...(rvPh&&{phone:rvPh})});}catch{}}
     await api('POST','/reviews',{restaurant_id:rid,visit_date:document.getElementById('rvDate').value,qualita:reviewScores.qualita,velocita:reviewScores.velocita,prezzo:reviewScores.prezzo,bonus_simpatia:document.getElementById('rvSimpatia').checked,bonus_caffe:document.getElementById('rvCaffe').checked,note:document.getElementById('rvNota').value.trim()});
     toast('Recensione pubblicata! 🎉');
