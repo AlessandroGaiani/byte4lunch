@@ -69,9 +69,10 @@ router.post('/register', async (req, res) => {
     if (existing) return res.status(409).json({ error: 'Email già registrata' });
 
     const hash = bcrypt.hashSync(password, 12);
+    const autoRole = email.toLowerCase().trim().endsWith('@omegagruppo.it') ? 'reviewer' : 'user';
     const result = await db.run(
-      `INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'user')`,
-      [name.trim(), email.toLowerCase().trim(), hash]
+      `INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)`,
+      [name.trim(), email.toLowerCase().trim(), hash, autoRole]
     );
 
     const user = await db.get('SELECT id, name, email, role FROM users WHERE id = ?', [result.lastInsertRowid]);
