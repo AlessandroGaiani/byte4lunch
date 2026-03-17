@@ -78,7 +78,7 @@ router.get('/search-places', async (req, res) => {
     // 1) Overpass API: cerca ristoranti/bar/locali per nome nell'area Veneto
     try {
       const escapedQ = q.replace(/[\\'"\n\r\t]/g, ' ').replace(/[[\]{}()|*+?.^$]/g, '');
-      const overpassQuery = `[out:json][timeout:10];(nwr["amenity"~"restaurant|bar|cafe|fast_food|pub|biergarten"]["name"~"${escapedQ}",i](44.9,11.5,46.0,13.0);nwr["shop"~"bakery|pastry|deli"]["name"~"${escapedQ}",i](44.9,11.5,46.0,13.0););out center 15;`;
+      const overpassQuery = `[out:json][timeout:15];(nwr["amenity"~"restaurant|bar|cafe|fast_food|pub|biergarten|ice_cream|food_court"]["name"~"${escapedQ}",i](43.0,6.5,47.5,14.5);nwr["shop"~"bakery|pastry|deli|butcher|greengrocer"]["name"~"${escapedQ}",i](43.0,6.5,47.5,14.5););out center 20;`;
       const postBody = 'data=' + encodeURIComponent(overpassQuery);
       const ovData = await httpPost('https://overpass-api.de/api/interpreter', postBody, {
         'Content-Type': 'application/x-www-form-urlencoded'
@@ -113,7 +113,7 @@ router.get('/search-places', async (req, res) => {
 
     // 2) Nominatim: ricerca più generica come fallback
     try {
-      const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&addressdetails=1&limit=8&countrycodes=it&extratags=1&viewbox=11.5,44.9,13.0,46.0&bounded=0`;
+      const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&addressdetails=1&extratags=1&namedetails=1&limit=10&countrycodes=it&accept-language=it`;
       const nomData = await httpGet(nomUrl, { 'User-Agent': 'byte4lunch/1.0' });
       console.log('[search-places] Nominatim returned', nomData.length, 'results');
       for (const p of nomData) {
@@ -123,20 +123,24 @@ router.get('/search-places', async (req, res) => {
         // Evita duplicati
         const isDupe = results.some(r => r.name && r.name.toLowerCase() === (p.name || '').toLowerCase() && Math.abs(r.lat - lat) < 0.002);
         if (isDupe) continue;
-        const road = addr.road || '';
+        const road = addr.road || addr.pedestrian || addr.footway || '';
         const number = addr.house_number || '';
-        const city = addr.city || addr.town || addr.village || addr.municipality || '';
+        const city = addr.city || addr.town || addr.village || addr.suburb || addr.municipality || addr.county || '';
         const postcode = addr.postcode || '';
-        const fullAddr = [road + (number ? ' ' + number : ''), postcode, city].filter(Boolean).join(', ');
-        const phone = p.extratags && p.extratags.phone ? p.extratags.phone : '';
+        const streetPart = road + (number ? ' ' + number : '');
+        const fullAddr = [streetPart, postcode, city].filter(Boolean).join(', ')
+          || p.display_name.split(',').slice(1, 4).map(s => s.trim()).filter(Boolean).join(', ');
+        const ext = p.extratags || {};
+        const phone = ext.phone || ext['contact:phone'] || ext['contact:mobile'] || '';
+        const cuisine = ext.cuisine || '';
         results.push({
-          name: p.name || p.display_name.split(',')[0],
-          addr: fullAddr || p.display_name.split(',').slice(0, 3).join(', '),
+          name: p.name || (p.namedetails && p.namedetails.name) || p.display_name.split(',')[0],
+          addr: fullAddr,
           city,
           lat, lon,
           phone,
-          cuisine: '',
-          type: (p.type || '').replace(/_/g, ' '),
+          cuisine,
+          type: (p.type || p.class || '').replace(/_/g, ' '),
           source: 'nominatim'
         });
       }
