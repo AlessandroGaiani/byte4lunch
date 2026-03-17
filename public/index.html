@@ -119,8 +119,8 @@ nav{position:sticky;top:0;z-index:100;background:var(--dark);display:flex;align-
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading-wrap{text-align:center;padding:40px;color:var(--gray)}
 .invite-box{background:#f0faf0;border:1px solid var(--green);border-radius:10px;padding:14px;margin-top:12px;font-size:.82rem;font-family:'Space Mono',monospace;word-break:break-all}
-.hamburger{display:none;flex-direction:column;justify-content:center;gap:5px;cursor:pointer;padding:6px 4px;background:none;border:none}
-.hamburger span{display:block;width:22px;height:2px;background:white;border-radius:2px;transition:all .25s}
+.hamburger{display:none;flex-direction:column;justify-content:center;gap:5px;cursor:pointer;padding:8px 9px;background:rgba(255,255,255,.13);border:1.5px solid rgba(255,255,255,.22);border-radius:8px}
+.hamburger span{display:block;width:22px;height:2.5px;background:white;border-radius:2px;transition:all .25s;box-shadow:0 1px 2px rgba(0,0,0,.4)}
 @media(max-width:640px){
   .hamburger{display:flex}
   .nav-actions{display:none;position:absolute;top:56px;left:0;right:0;background:var(--dark);flex-direction:column;padding:10px 16px 16px;gap:2px;border-top:1px solid rgba(255,255,255,.1);z-index:99}
@@ -272,17 +272,23 @@ nav{position:sticky;top:0;z-index:100;background:var(--dark);display:flex;align-
       <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="loginEmail" placeholder="nome@omega.it" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <div class="form-group"><label class="form-label">Password</label><input class="form-input" type="password" id="loginPwd" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <button class="btn btn-primary" style="width:100%;padding:12px;font-size:1rem;margin-top:4px" id="loginBtn" onclick="doLogin()">Accedi</button>
-      <p style="text-align:center;margin-top:14px;font-size:.78rem;color:var(--gray);font-family:'Space Mono',monospace;cursor:pointer" onclick="showRegister()">Non hai un account? Registrati →</p>
+      <div style="display:flex;align-items:center;gap:10px;margin:16px 0 4px">
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-size:.72rem;color:var(--gray);font-family:'Space Mono',monospace;white-space:nowrap">nuovo su byte4lunch?</span>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>
+      <button class="btn btn-outline" style="width:100%;padding:10px;font-size:.9rem" onclick="showRegister()">Crea account →</button>
     </div>
     <div id="registerPanel" style="display:none">
       <div class="login-title">Registrati</div><div class="login-sub">Crea il tuo account</div>
+      <div style="margin-bottom:14px;padding:9px 12px;background:#f0faf0;border:1px solid var(--green);border-radius:8px;font-size:.75rem;font-family:'Space Mono',monospace;color:var(--green-dark)">💡 Se usi la tua email <strong>@omegagruppo.it</strong> diventi automaticamente reviewer</div>
       <div class="error-msg" id="regError"></div>
       <div class="form-group"><label class="form-label">Nome completo</label><input class="form-input" id="regName" placeholder="Mario Rossi" onkeydown="if(event.key==='Enter')doRegister()"></div>
-      <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="regEmail" placeholder="nome@omega.it" onkeydown="if(event.key==='Enter')doRegister()"></div>
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="regEmail" placeholder="nome@omegagruppo.it" onkeydown="if(event.key==='Enter')doRegister()"></div>
       <div class="form-group"><label class="form-label">Password</label><input class="form-input" type="password" id="regPwd" placeholder="••••••••" onkeydown="if(event.key==='Enter')doRegister()" oninput="checkRegPwdStrength()"></div>
       <div id="regPwdRules" style="font-size:.75rem;margin:-6px 0 10px;color:var(--gray)">Min 8 caratteri, maiuscola, minuscola, numero, carattere speciale</div>
       <button class="btn btn-primary" style="width:100%;padding:12px;font-size:1rem;margin-top:4px" id="regBtn" onclick="doRegister()">Crea account</button>
-      <p style="text-align:center;margin-top:14px;font-size:.78rem;color:var(--gray);font-family:'Space Mono',monospace;cursor:pointer" onclick="showLogin()">← Torna al login</p>
+      <button class="btn btn-outline" style="width:100%;padding:10px;font-size:.9rem;margin-top:10px" onclick="showLogin()">← Torna al login</button>
     </div>
   </div></div>
 </div>
@@ -387,17 +393,21 @@ async function searchPlaces(query){
   }catch(e){}
   // Fallback: Nominatim direttamente dal browser (nessun cold-start, nessuna chiave)
   try{
-    const nr=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(query)+'&format=json&limit=10&addressdetails=1&countrycodes=it&accept-language=it');
+    const nr=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(query)+'&format=json&limit=15&addressdetails=1&extratags=1&namedetails=1&countrycodes=it&accept-language=it&dedupe=1');
     const nd=await nr.json();
     const mapped=(nd||[]).map(p=>{
-      const a=p.address||{};
-      const street=[a.road,a.house_number].filter(Boolean).join(' ');
-      const city=a.city||a.town||a.village||a.municipality||a.county||'';
-      const addr=[street,a.postcode,city].filter(Boolean).join(', ');
-      const name=p.display_name.split(',')[0].trim();
-      return {name,addr,city,lat:parseFloat(p.lat),lon:parseFloat(p.lon),phone:'',cuisine:'',type:p.type||p.class||'',source:'osm'};
+      const a=p.address||{};const ext=p.extratags||{};
+      const road=a.road||a.pedestrian||a.footway||'';
+      const street=[road,a.house_number].filter(Boolean).join(' ');
+      const city=a.city||a.town||a.village||a.suburb||a.municipality||a.county||'';
+      const fallbackAddr=p.display_name.split(',').slice(1,4).map(s=>s.trim()).filter(Boolean).join(', ');
+      const addr=[street,a.postcode,city].filter(Boolean).join(', ')||fallbackAddr;
+      const name=(p.namedetails&&p.namedetails.name)||p.display_name.split(',')[0].trim();
+      const phone=ext.phone||ext['contact:phone']||ext['contact:mobile']||'';
+      const cuisine=ext.cuisine||'';
+      return {name,addr,city,lat:parseFloat(p.lat),lon:parseFloat(p.lon),phone,cuisine,type:p.type||p.class||'',source:'osm'};
     }).filter(f=>f.name&&f.lat&&f.lon);
-    if(!mapped.length){results.innerHTML=`<div class="place-searching">Nessun risultato. Prova con il nome completo (es. "Trattoria Da Mario Quarto d'Altino")</div>`;return;}
+    if(!mapped.length){results.innerHTML=`<div class="place-searching">Nessun risultato. Prova con il nome completo (es. "Trattoria Da Mario, Quarto d'Altino")</div>`;return;}
     renderPlaces(mapped);
   }catch(e){
     results.innerHTML='<div class="place-searching">Errore di ricerca. Riprova.</div>';
@@ -881,6 +891,10 @@ const DOOM_TRIGGER='piero';
 
 function launchDoom(){
   if(document.getElementById('doomOverlay'))return;
+  // Blocca pinch-to-zoom su mobile per tutta la durata del gioco
+  const vpMeta=document.querySelector('meta[name="viewport"]');
+  const origVP=vpMeta?vpMeta.content:'';
+  if(vpMeta)vpMeta.content='width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no';
   const W=640,H=400,FOV=Math.PI/3;
   // Map: more open layout with corridors connecting all areas
   const MAP=[
@@ -995,7 +1009,9 @@ function launchDoom(){
     document.removeEventListener('keydown',onKey);document.removeEventListener('keyup',onKey);
     document.removeEventListener('mousemove',onMouse);cv.removeEventListener('click',onClick);
     if(cv._th){cv.removeEventListener('touchstart',cv._th.onTS);cv.removeEventListener('touchmove',cv._th.onTM);cv.removeEventListener('touchend',cv._th.onTE);cv.removeEventListener('touchcancel',cv._th.onTE);}
-    if(document.pointerLockElement)document.exitPointerLock();ov.remove();gameOver=1;
+    if(document.pointerLockElement)document.exitPointerLock();
+    if(vpMeta)vpMeta.content=origVP; // Ripristina zoom normale
+    ov.remove();gameOver=1;
   }
 
   function restart(){
@@ -1338,7 +1354,7 @@ function launchDoom(){
   requestAnimationFrame(t=>{lastTime=t;loop(t);});
 }
 
-loadSession();updateNav();renderHome();
+loadSession();updateNav();if(!currentUser){showPage('login');}else{renderHome();}
 </script>
 </body>
 </html>
