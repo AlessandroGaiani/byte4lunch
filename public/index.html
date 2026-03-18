@@ -498,14 +498,14 @@ function renderGlobi(score,size){let h='';for(let i=1;i<=5;i++)h+=globo(size,i<=
 function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
 
-function showPage(name){
+function showPage(name,param){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
   window.scrollTo(0,0);
   document.getElementById('navActions').classList.remove('open');
   if(name==='home')renderHome();
   if(name==='list'){renderList();setTimeout(()=>{if(listMap)listMap.invalidateSize();},200);}
-  if(name==='newReview')renderNewReview();
+  if(name==='newReview')renderNewReview(param);
   if(name==='admin'){currentAdminTab='users';document.querySelectorAll('.admin-tab').forEach((t,i)=>t.classList.toggle('active',i===0));renderAdmin();}
   if(name==='login'){showLogin();checkInviteParam();}
   if(name==='password'){document.getElementById('pwdCurrent').value='';document.getElementById('pwdNew').value='';document.getElementById('pwdConfirm').value='';document.getElementById('pwdError').style.display='none';document.getElementById('pwdSuccess').style.display='none';checkPwdStrength();}
@@ -749,9 +749,9 @@ async function openDetail(id){
 function srow(label,val){const v=val||0;const pct=(v/5*100).toFixed(0);return`<div class="score-row"><span class="score-row-label">${label}</span><div class="score-bar-wrap"><div class="score-bar" style="width:${pct}%"></div></div><span class="score-val">${v}</span></div>`;}
 
 async function deleteReview(rid){if(!confirm('Eliminare?'))return;try{await api('DELETE','/reviews/'+rid);toast('Eliminata');openDetail(currentDetailId);}catch(e){toast('Errore: '+e.message);}}
-function goReviewThis(rid){showPage('newReview');setTimeout(()=>{document.getElementById('rvRistorante').value=rid;},100);}
+function goReviewThis(rid){showPage('newReview',rid);}
 
-async function renderNewReview(){
+async function renderNewReview(preselectId){
   reviewScores={qualita:0,velocita:0,prezzo:0};
   document.getElementById('rvDate').value=new Date().toISOString().split('T')[0];
   ['rvNota','rvNewName','rvNewPlace','rvAddress','rvPhone','rvNewLat','rvNewLng','rvSearchPlace'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
@@ -761,7 +761,8 @@ async function renderNewReview(){
   document.getElementById('rvSelectedPlace').style.display='none';
   document.getElementById('rvSearchResults').style.display='none';
   try{const rests=await api('GET','/restaurants');const sel=document.getElementById('rvRistorante');
-    sel.innerHTML='<option value="">Seleziona un ristorante esistente...</option>'+rests.map(r=>`<option value="${r.id}">${esc(r.name)} — ${esc(r.place)}</option>`).join('');}catch{}
+    sel.innerHTML='<option value="">Seleziona un ristorante esistente...</option>'+rests.map(r=>`<option value="${r.id}">${esc(r.name)} — ${esc(r.place)}</option>`).join('');
+    if(preselectId){sel.value=preselectId;await onRestaurantSelect();}}catch{}
   ['pickQualita','pickVelocita','pickPrezzo'].forEach(pid=>{
     const el=document.getElementById(pid);const field=el.dataset.field;el.innerHTML='';
     for(let i=1;i<=5;i++){const s=document.createElement('span');s.className='glob-pick';s.innerHTML=globo(32,false);s.dataset.val=i;s.onclick=()=>setGlob(field,i);el.appendChild(s);}
