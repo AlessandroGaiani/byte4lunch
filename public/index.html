@@ -233,6 +233,14 @@ nav{position:sticky;top:0;z-index:1100;background:var(--dark);display:flex;align
       <input type="hidden" id="rvNewPlace">
       <input type="hidden" id="rvNewLat">
       <input type="hidden" id="rvNewLng">
+      <div style="text-align:right;margin-top:6px">
+        <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:4px 10px;color:var(--gray)" onclick="toggleManualEntry()">✏️ Non trovato? Inserisci manualmente</button>
+      </div>
+      <div id="rvManualSection" style="display:none;margin-top:6px;padding:12px;background:#f8f9fa;border:1px solid var(--border);border-radius:10px">
+        <div style="font-size:.78rem;font-family:'Space Mono',monospace;color:var(--gray);margin-bottom:8px">Inserisci il ristorante a mano:</div>
+        <input class="form-input" id="rvManualName" placeholder="Nome ristorante *" style="margin-bottom:8px">
+        <input class="form-input" id="rvManualCity" placeholder="Città / Comune (es. Quarto d'Altino)">
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Indirizzo <span style="font-size:.7rem;font-weight:400;text-transform:none;letter-spacing:0">(compilato automaticamente, modificabile)</span></label>
@@ -444,8 +452,11 @@ function selectPlace(idx){
   document.getElementById('rvSearchPlace').value='';
   results.style.display='none';
 
-  // Deselect existing restaurant
+  // Deselect existing restaurant + hide manual entry
   document.getElementById('rvRistorante').value='';
+  document.getElementById('rvManualSection').style.display='none';
+  document.getElementById('rvManualName').value='';
+  document.getElementById('rvManualCity').value='';
   setTags([]);
 }
 function clearPlaceSelection(){
@@ -457,6 +468,12 @@ function clearPlaceSelection(){
   document.getElementById('rvAddress').value='';
   document.getElementById('rvPhone').value='';
   document.getElementById('rvSearchPlace').value='';
+}
+function toggleManualEntry(){
+  const s=document.getElementById('rvManualSection');
+  const show=s.style.display==='none';
+  s.style.display=show?'':'none';
+  if(show){clearPlaceSelection();document.getElementById('rvRistorante').value='';setTags([]);}
 }
 function toggleTag(el){el.classList.toggle('active');}
 function getSelectedTags(){return[...document.querySelectorAll('#rvTagGroup .tag-pick.active')].map(el=>el.dataset.tag);}
@@ -750,21 +767,52 @@ async function openDetail(id){
           ${canDel?`<button class="btn btn-danger btn-sm" style="margin-top:10px" onclick="deleteReview(${rv.id})">Elimina</button>`:''}
         </div>`;});
     }else{html='<div class="empty"><p>Nessuna recensione ancora.<br>Sii il primo!</p></div>';}
-    if(currentUser&&['admin','reviewer'].includes(currentUser.role))html+=`<button class="btn btn-primary" style="width:100%;padding:13px;margin-top:16px" onclick="goReviewThis(${id})">+ Aggiungi recensione</button>`;
+    if(currentUser&&['admin','reviewer'].includes(currentUser.role))html+=`
+      <button class="btn btn-primary" style="width:100%;padding:13px;margin-top:16px" onclick="goReviewThis(${id})">+ Aggiungi recensione</button>
+      <button class="btn btn-outline" style="width:100%;padding:10px;margin-top:8px;font-size:.88rem" onclick="toggleRestEdit()">✏️ Aggiorna informazioni</button>
+      <div id="restEditForm" style="display:none;margin-top:10px;padding:14px;background:#f8f9fa;border:1px solid var(--border);border-radius:12px">
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:.9rem;margin-bottom:12px">Modifica scheda ristorante</div>
+        ${currentUser?.role==='admin'?`
+        <div class="form-group" style="margin-bottom:10px"><label class="form-label">Nome</label>
+          <input class="form-input" id="editName" value="${esc(r.name||'')}" placeholder="Nome ristorante"></div>
+        <div class="form-group" style="margin-bottom:10px"><label class="form-label">Città / Comune</label>
+          <input class="form-input" id="editPlace" value="${esc(r.place||'')}" placeholder="Es. Quarto d'Altino"></div>`
+        :`<input type="hidden" id="editName"><input type="hidden" id="editPlace">`}
+        <div class="form-group" style="margin-bottom:10px"><label class="form-label">Indirizzo</label>
+          <input class="form-input" id="editAddr" value="${esc(r.address||'')}" placeholder="Via Roma 12"></div>
+        <div class="form-group" style="margin-bottom:12px"><label class="form-label">Telefono</label>
+          <input class="form-input" id="editPhone" value="${esc(r.phone||'')}" placeholder="+39 041 123456" type="tel"></div>
+        <button class="btn btn-primary" style="width:100%;padding:10px" onclick="saveRestInfo(${id})">Salva modifiche</button>
+      </div>`;
     document.getElementById('detailContent').innerHTML=html;
   }catch{document.getElementById('detailContent').innerHTML='<div class="empty"><p>Errore caricamento</p></div>';}
 }
 function srow(label,val){const v=val||0;const pct=(v/5*100).toFixed(0);return`<div class="score-row"><span class="score-row-label">${label}</span><div class="score-bar-wrap"><div class="score-bar" style="width:${pct}%"></div></div><span class="score-val">${v}</span></div>`;}
 
 async function deleteReview(rid){if(!confirm('Eliminare?'))return;try{await api('DELETE','/reviews/'+rid);toast('Eliminata');openDetail(currentDetailId);}catch(e){toast('Errore: '+e.message);}}
+function toggleRestEdit(){const f=document.getElementById('restEditForm');f.style.display=f.style.display==='none'?'':'none';}
+async function saveRestInfo(id){
+  const addr=document.getElementById('editAddr').value.trim();
+  const phone=document.getElementById('editPhone').value.trim();
+  const name=document.getElementById('editName').value.trim();
+  const place=document.getElementById('editPlace').value.trim();
+  try{
+    await api('PATCH','/restaurants/'+id,{address:addr||null,phone:phone||null});
+    if((name||place)&&currentUser?.role==='admin'){
+      try{await api('PUT','/restaurants/'+id,{name:name||undefined,place:place||undefined});}catch{}
+    }
+    toast('Informazioni aggiornate ✓');openDetail(id);
+  }catch(e){toast('Errore: '+e.message);}
+}
 function goReviewThis(rid){showPage('newReview',rid);}
 
 async function renderNewReview(preselectId){
   reviewScores={qualita:0,velocita:0,prezzo:0};
   document.getElementById('rvDate').value=new Date().toISOString().split('T')[0];
-  ['rvNota','rvNewName','rvNewPlace','rvAddress','rvPhone','rvNewLat','rvNewLng','rvSearchPlace'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['rvNota','rvNewName','rvNewPlace','rvAddress','rvPhone','rvNewLat','rvNewLng','rvSearchPlace','rvManualName','rvManualCity'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('rvSimpatia').checked=false;document.getElementById('rvCaffe').checked=false;
   setTags([]);
+  document.getElementById('rvManualSection').style.display='none';
   document.getElementById('rvError').style.display='none';
   document.getElementById('rvSelectedPlace').style.display='none';
   document.getElementById('rvSearchResults').style.display='none';
@@ -783,8 +831,9 @@ function setGlob(field,val){reviewScores[field]=val;const pid='pick'+field.charA
 async function submitReview(){
   const errEl=document.getElementById('rvError');errEl.style.display='none';
   let rid=parseInt(document.getElementById('rvRistorante').value);
-  const newName=document.getElementById('rvNewName').value.trim();
-  if(!rid&&!newName){errEl.textContent='Seleziona un ristorante esistente o cercane uno nuovo';errEl.style.display='block';return;}
+  const newName=document.getElementById('rvNewName').value.trim()||document.getElementById('rvManualName').value.trim();
+  const newPlace=document.getElementById('rvNewPlace').value.trim()||document.getElementById('rvManualCity').value.trim()||'—';
+  if(!rid&&!newName){errEl.textContent='Seleziona un ristorante esistente, cercane uno nuovo o inseriscilo manualmente';errEl.style.display='block';return;}
   if(!reviewScores.qualita||!reviewScores.velocita||!reviewScores.prezzo){errEl.textContent='Assegna i globi per tutti i criteri';errEl.style.display='block';return;}
   const btn=document.getElementById('rvSubmit');btn.disabled=true;btn.textContent='Invio…';
   const rvAddr=document.getElementById('rvAddress').value.trim();
@@ -793,7 +842,7 @@ async function submitReview(){
   const rvLng=parseFloat(document.getElementById('rvNewLng').value)||null;
   try{
     const rvTags=getSelectedTags();
-    if(!rid&&newName){const rest=await api('POST','/restaurants',{name:newName,place:document.getElementById('rvNewPlace').value.trim()||'—',address:rvAddr||null,phone:rvPh||null,lat:rvLat,lng:rvLng,tags:rvTags});rid=rest.id;}
+    if(!rid&&newName){const rest=await api('POST','/restaurants',{name:newName,place:newPlace,address:rvAddr||null,phone:rvPh||null,lat:rvLat,lng:rvLng,tags:rvTags});rid=rest.id;}
     else if(rid){try{await api('PATCH','/restaurants/'+rid,{...(rvAddr&&{address:rvAddr}),...(rvPh&&{phone:rvPh}),tags:rvTags});}catch{}}
     await api('POST','/reviews',{restaurant_id:rid,visit_date:document.getElementById('rvDate').value,qualita:reviewScores.qualita,velocita:reviewScores.velocita,prezzo:reviewScores.prezzo,bonus_simpatia:document.getElementById('rvSimpatia').checked,bonus_caffe:document.getElementById('rvCaffe').checked,note:document.getElementById('rvNota').value.trim()});
     toast('Recensione pubblicata! 🎉');
