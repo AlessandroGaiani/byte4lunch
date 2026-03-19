@@ -683,7 +683,15 @@ function renderMap(restaurants){
 
   // Fit bounds
   if(withCoords.length){
-    setTimeout(()=>{listMap.invalidateSize();if(listMarkers.getBounds().isValid())listMap.fitBounds(listMarkers.getBounds(),{padding:[30,30],maxZoom:14});},100);
+    setTimeout(()=>{
+      listMap.invalidateSize();
+      if(nearMeMode&&userCoords){
+        // Modalità "vicino a me": centra sulla posizione utente, zoom 12 ≈ 15 km raggio
+        listMap.setView([userCoords.lat,userCoords.lon],12);
+      }else if(listMarkers.getBounds().isValid()){
+        listMap.fitBounds(listMarkers.getBounds(),{padding:[30,30],maxZoom:14});
+      }
+    },100);
   }
 }
 function setFilter(p,el){disableNearMe();currentFilter=p;document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));el.classList.add('active');renderList();}
