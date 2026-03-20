@@ -84,6 +84,11 @@ async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_reviews_restaurant ON reviews(restaurant_id);
     CREATE INDEX IF NOT EXISTS idx_reviews_user ON reviews(user_id);
     CREATE INDEX IF NOT EXISTS idx_restaurants_place ON restaurants(place);
+
+    CREATE TABLE IF NOT EXISTS anon_visits (
+      date TEXT PRIMARY KEY,
+      count INTEGER NOT NULL DEFAULT 0
+    );
   `);
 
   // Migrazioni: aggiungi colonne se non esistono

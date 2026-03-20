@@ -1,5 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const db = require('../database');
 const { authMiddleware, requireRole } = require('../middleware/auth');
 
@@ -61,7 +62,10 @@ router.get('/leaderboard', async (req, res) => {
 router.get('/', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const users = await db.all(
-      `SELECT id, name, email, role, role_request, active, created_at, last_login FROM users ORDER BY created_at DESC`
+      `SELECT u.id, u.name, u.email, u.role, u.role_request, u.active, u.created_at, u.last_login,
+              COUNT(r.id) AS review_count
+       FROM users u LEFT JOIN reviews r ON r.user_id = u.id
+       GROUP BY u.id ORDER BY u.created_at DESC`
     );
     res.json(users);
   } catch (e) {
@@ -149,6 +153,41 @@ router.put('/:id/deny-reviewer', authMiddleware, requireRole('admin'), async (re
   try {
     await db.run('UPDATE users SET role_request = NULL WHERE id = ?', [req.params.id]);
     res.json({ message: 'Richiesta rifiutata' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// DELETE /api/users/:id — solo admin, solo se l'utente non ha recensioni
+router.delete('/:id', authMiddleware, requireRole('admin'), async (req, res) => {
+  try {
+    if (parseInt(req.params.id) === req.user.id) {
+      return res.status(400).json({ error: 'Non puoi eliminare te stesso' });
+    }
+    const reviewCount = await db.get(
+      'SELECT COUNT(*) as cnt FROM reviews WHERE user_id = ?', [req.params.id]
+    );
+    if (reviewCount && Number(reviewCount.cnt) > 0) {
+      return res.status(400).json({ error: 'Impossibile eliminare: l\'utente ha recensioni attive' });
+    }
+    await db.run('DELETE FROM users WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Utente eliminato' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// POST /api/users/:id/reset-password — solo admin, genera una password temporanea
+router.post('/:id/reset-password', authMiddleware, requireRole('admin'), async (req, res) => {
+  try {
+    const target = await db.get('SELECT id FROM users WHERE id = ?', [req.params.id]);
+    if (!target) return res.status(404).json({ error: 'Utente non trovato' });
+    const tempPassword = 'Tmp_' + crypto.randomBytes(6).toString('base64url');
+    const hash = bcrypt.hashSync(tempPassword, 12);
+    await db.run('UPDATE users SET password_hash = ? WHERE id = ?', [hash, req.params.id]);
+    res.json({ tempPassword });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Errore interno del server' });
