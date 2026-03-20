@@ -30,7 +30,8 @@ nav{position:sticky;top:0;z-index:1100;background:var(--dark);display:flex;align
 .btn-primary{background:var(--green);color:white}.btn-primary:hover{background:var(--green-dark)}
 .btn-outline{background:transparent;color:var(--green);border:1.5px solid var(--green)}.btn-outline:hover{background:var(--green);color:white}
 .btn-danger{background:#e74c3c;color:white}.btn-danger:hover{background:#c0392b}
-.btn-sm{padding:5px 10px;font-size:.78rem}
+.btn-warning{background:#f39c12;color:white}.btn-warning:hover{background:#d68910}
+.btn-sm{padding:4px 9px;font-size:.76rem}
 .nav-user{font-size:.8rem;color:var(--green-light);font-family:'Space Mono',monospace}
 .page{display:none;animation:fadeIn .3s ease}.page.active{display:block}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -115,7 +116,7 @@ nav{position:sticky;top:0;z-index:1100;background:var(--dark);display:flex;align
 .admin-tab.active{color:var(--green);border-bottom-color:var(--green)}
 .admin-table{width:100%;border-collapse:collapse;font-size:.85rem}
 .admin-table th{text-align:left;padding:8px 12px;font-family:'Space Mono',monospace;font-size:.7rem;color:var(--gray);background:var(--cream)}
-.admin-table td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.admin-table td{padding:6px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
 .role-badge{font-size:.7rem;padding:2px 8px;border-radius:4px;font-family:'Space Mono',monospace;font-weight:700}
 .role-admin{background:#fff3cd;color:#856404}.role-reviewer{background:#d1e7dd;color:#0a5c36}.role-user{background:#e2e3e5;color:#555}
 .filter-bar{display:flex;gap:8px;padding:16px 20px;overflow-x:auto;background:white;border-bottom:1px solid var(--border)}
@@ -915,11 +916,11 @@ async function renderAdmin(){
           <td><span style="color:${u.active?'var(--green)':'#ccc'}">${u.active?'Attivo':'Disattivo'}</span></td>
           <td style="font-size:.8rem;text-align:center">${Number(u.review_count)||0}</td>
           <td style="font-size:.72rem;color:var(--gray)">${u.last_login?u.last_login.slice(0,16):'—'}</td>
-          <td><div style="display:flex;gap:6px;flex-wrap:wrap">
+          <td><div style="display:flex;gap:5px;align-items:center;flex-wrap:nowrap">
             <select onchange="adminChangeRole(${u.id},this.value)" style="font-size:.75rem;padding:3px;border:1px solid #ddd;border-radius:4px">${['admin','reviewer','user'].map(r=>`<option value="${r}"${u.role===r?' selected':''}>${r}</option>`).join('')}</select>
-            <button class="btn btn-sm ${u.active?'btn-danger':'btn-outline'}" onclick="adminToggleActive(${u.id},${u.active?0:1})">${u.active?'Disattiva':'Attiva'}</button>
+            <button class="btn btn-sm ${u.active?'btn-warning':'btn-outline'}" onclick="adminToggleActive(${u.id},${u.active?0:1})">${u.active?'Disattiva':'Attiva'}</button>
             <button class="btn btn-sm btn-outline" onclick="adminResetPassword(${u.id},'${esc(u.name).replace(/'/g,"\\'")}')">Reset pwd</button>
-            ${u.id!==currentUser.id&&Number(u.review_count)===0?`<button class="btn btn-sm btn-danger" onclick="adminDeleteUser(${u.id},'${esc(u.name).replace(/'/g,"\\'")}')">Elimina</button>`:''}
+            ${u.id!==currentUser.id&&Number(u.review_count)===0?`<span style="border-left:1.5px solid #ddd;margin-left:4px;padding-left:4px"><button class="btn btn-sm btn-danger" onclick="adminDeleteUser(${u.id},'${esc(u.name).replace(/'/g,"\\'")}')">Elimina</button></span>`:''}
           </div></td></tr>`).join('')}
         </table></div>`;
     }else if(currentAdminTab==='reviews'){
