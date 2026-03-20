@@ -909,14 +909,17 @@ async function renderAdmin(){
           <select class="form-select" id="adUR" style="flex:1;min-width:100px"><option value="user">user</option><option value="reviewer">reviewer</option><option value="admin">admin</option></select>
           <button class="btn btn-primary" onclick="adminCreateUser()">Crea</button>
         </div></div>
-        <div style="overflow-x:auto"><table class="admin-table"><tr><th>Nome</th><th>Email</th><th>Ruolo</th><th>Stato</th><th>Ultimo accesso</th><th>Azioni</th></tr>
+        <div style="overflow-x:auto"><table class="admin-table"><tr><th>Nome</th><th>Email</th><th>Ruolo</th><th>Stato</th><th>Rec.</th><th>Ultimo accesso</th><th>Azioni</th></tr>
         ${users.map(u=>`<tr><td>${esc(u.name)}</td><td style="font-size:.8rem">${esc(u.email)}</td>
           <td><span class="role-badge role-${u.role}">${u.role}</span></td>
           <td><span style="color:${u.active?'var(--green)':'#ccc'}">${u.active?'Attivo':'Disattivo'}</span></td>
+          <td style="font-size:.8rem;text-align:center">${Number(u.review_count)||0}</td>
           <td style="font-size:.72rem;color:var(--gray)">${u.last_login?u.last_login.slice(0,16):'—'}</td>
           <td><div style="display:flex;gap:6px;flex-wrap:wrap">
             <select onchange="adminChangeRole(${u.id},this.value)" style="font-size:.75rem;padding:3px;border:1px solid #ddd;border-radius:4px">${['admin','reviewer','user'].map(r=>`<option value="${r}"${u.role===r?' selected':''}>${r}</option>`).join('')}</select>
             <button class="btn btn-sm ${u.active?'btn-danger':'btn-outline'}" onclick="adminToggleActive(${u.id},${u.active?0:1})">${u.active?'Disattiva':'Attiva'}</button>
+            <button class="btn btn-sm btn-outline" onclick="adminResetPassword(${u.id},'${esc(u.name).replace(/'/g,"\\'")}')">Reset pwd</button>
+            ${u.id!==currentUser.id&&Number(u.review_count)===0?`<button class="btn btn-sm btn-danger" onclick="adminDeleteUser(${u.id},'${esc(u.name).replace(/'/g,"\\'")}')">Elimina</button>`:''}
           </div></td></tr>`).join('')}
         </table></div>`;
     }else if(currentAdminTab==='reviews'){
@@ -948,6 +951,8 @@ async function approveReviewer(uid){try{await api('PUT','/users/'+uid+'/approve-
 async function denyReviewer(uid){try{await api('PUT','/users/'+uid+'/deny-reviewer');toast('Richiesta rifiutata');renderAdmin();}catch(e){toast('Errore: '+e.message);}}
 async function adminToggleActive(uid,active){try{await api('PUT','/users/'+uid+'/active',{active});renderAdmin();}catch(e){toast('Errore: '+e.message);}}
 async function adminCreateUser(){try{await api('POST','/users',{name:document.getElementById('adUN').value,email:document.getElementById('adUE').value,password:document.getElementById('adUP').value,role:document.getElementById('adUR').value});toast('Utente creato!');renderAdmin();}catch(e){toast('Errore: '+e.message);}}
+async function adminDeleteUser(uid,name){if(!confirm(`Eliminare definitivamente l'utente "${name}"?`))return;try{await api('DELETE','/users/'+uid);toast('Utente eliminato');renderAdmin();}catch(e){toast('Errore: '+e.message);}}
+async function adminResetPassword(uid,name){if(!confirm(`Reimpostare la password di "${name}"?`))return;try{const r=await api('POST','/users/'+uid+'/reset-password');alert(`Password temporanea per ${name}:\n\n${r.tempPassword}\n\nComunicala all'utente, dovrà cambiarla al primo accesso.`);}catch(e){toast('Errore: '+e.message);}}
 async function adminDeleteReview(rid){if(!confirm('Eliminare?'))return;try{await api('DELETE','/reviews/'+rid);renderAdmin();toast('Eliminata');}catch(e){toast('Errore: '+e.message);}}
 async function adminDeleteRest(rid){if(!confirm('Rimuovere?'))return;try{await api('DELETE','/restaurants/'+rid);renderAdmin();toast('Rimosso');}catch(e){toast('Errore: '+e.message);}}
 async function adminAddRest(){const n=document.getElementById('adRN').value.trim(),p=document.getElementById('adRP').value.trim(),ph=document.getElementById('adRPh').value.trim();if(!n||!p)return;try{await api('POST','/restaurants',{name:n,place:p,phone:ph||null,tags:['menu fisso']});renderAdmin();toast('Aggiunto!');}catch(e){toast('Errore: '+e.message);}}
