@@ -4,7 +4,8 @@ const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-const { initDatabase } = require('./database');
+const { initDatabase, run, all } = require('./database');
+const { authMiddleware, requireRole } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -35,6 +36,34 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/restaurants', require('./routes/restaurants'));
 app.use('/api/reviews', require('./routes/reviews'));
 app.use('/api/users', require('./routes/users'));
+
+// ── Tracciamento visite anonime ───────────────────────────
+// POST /api/anon-ping — chiamato dal frontend quando l'utente non è loggato
+app.post('/api/anon-ping', async (req, res) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    await run(
+      `INSERT INTO anon_visits (date, count) VALUES (?, 1)
+       ON CONFLICT(date) DO UPDATE SET count = count + 1`,
+      [today]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('anon-ping error:', e);
+    res.status(500).json({ error: 'Errore interno' });
+  }
+});
+
+// GET /api/anon-visits — solo admin, restituisce conteggi per data
+app.get('/api/anon-visits', authMiddleware, requireRole('admin'), async (req, res) => {
+  try {
+    const rows = await all('SELECT date, count FROM anon_visits ORDER BY date DESC');
+    res.json(rows);
+  } catch (e) {
+    console.error('anon-visits error:', e);
+    res.status(500).json({ error: 'Errore interno' });
+  }
+});
 
 // ── Frontend statico ─────────────────────────────────────
 app.use(express.static(path.join(__dirname, 'public')));

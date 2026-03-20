@@ -1422,7 +1422,7 @@ function launchDoom(){
   requestAnimationFrame(t=>{lastTime=t;loop(t);});
 }
 
-loadSession();updateNav();if(!currentUser){showPage('login');}else{renderHome();}
+loadSession();updateNav();if(!currentUser){fetch('/api/anon-ping',{method:'POST'}).catch(()=>{});showPage('login');}else{renderHome();}
 </script>
 </body>
 </html>
