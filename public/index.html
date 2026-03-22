@@ -4,6 +4,1423 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>byte4lunch</title>
+<meta name="theme-color" content="#1a1a18">
+<meta name="mobile-web-app-capable" content="yes">
+<!-- Favicon -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231a1a18'/%3E%3Cpath d='M50 8C26.8 8 8 26.8 8 50S26.8 92 50 92 92 73.2 92 50C92 38.7 87.4 28.4 79.9 21' stroke='%236BBF3E' stroke-width='9' stroke-linecap='round' fill='none'/%3E%3Cpath d='M50 22C33.4 22 20 35.4 20 52S33.4 82 50 82 80 68.6 80 52C80 44 76.8 36.7 71.5 31.4' stroke='%236BBF3E' stroke-width='8' stroke-linecap='round' fill='none'/%3E%3Cpath d='M50 36C41.7 36 35 42.7 35 51S41.7 66 50 66 65 59.3 65 51C65 46.9 63.3 43.2 60.5 40.5' stroke='%236BBF3E' stroke-width='7' stroke-linecap='round' fill='none'/%3E%3Ccircle cx='50' cy='51' r='5.5' fill='%236BBF3E'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{--green:#6BBF3E;--green-dark:#4a8a2a;--green-light:#a8d87a;--cream:#f8f5ef;--dark:#1a1a18;--gray:#8a8a80;--border:#e8e4da}
+*{box-sizing:border-box;margin:0;padding:0}html{scroll-behavior:smooth}body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--dark);min-height:100vh}
+nav{position:sticky;top:0;z-index:1100;background:var(--dark);display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:56px}
+.nav-logo{display:flex;align-items:center;gap:10px;font-family:'Syne',sans-serif;font-weight:800;font-size:1.1rem;color:white;cursor:pointer;text-decoration:none}
+.nav-logo svg{width:28px;height:28px}
+.nav-actions{display:flex;gap:8px;align-items:center}
+.btn{border:none;border-radius:6px;padding:8px 16px;font-family:'DM Sans',sans-serif;font-size:.85rem;font-weight:500;cursor:pointer;transition:all .2s}
+.btn-ghost{background:transparent;color:#aaa}.btn-ghost:hover{color:white}
+.btn-primary{background:var(--green);color:white}.btn-primary:hover{background:var(--green-dark)}
+.btn-outline{background:transparent;color:var(--green);border:1.5px solid var(--green)}.btn-outline:hover{background:var(--green);color:white}
+.btn-danger{background:#e74c3c;color:white}.btn-danger:hover{background:#c0392b}
+.btn-sm{padding:5px 10px;font-size:.78rem}
+.nav-user{font-size:.8rem;color:var(--green-light);font-family:'Space Mono',monospace}
+.page{display:none;animation:fadeIn .3s ease}.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.hero{background:var(--dark);padding:60px 24px 48px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-60px;right:-60px;width:300px;height:300px;background:radial-gradient(circle,rgba(107,191,62,.15) 0%,transparent 70%);border-radius:50%}
+.hero-logo-wrap{display:flex;flex-direction:column;align-items:center;gap:16px}
+.hero-logo-wrap svg{width:90px;height:90px;filter:drop-shadow(0 0 24px rgba(107,191,62,.4))}
+.hero h1{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(2rem,8vw,3.2rem);color:white;letter-spacing:-1px}
+.hero h1 span{color:var(--green)}
+.payoff{font-family:'Space Mono',monospace;font-size:.8rem;color:var(--gray);letter-spacing:2px;text-transform:uppercase;margin-top:4px}
+.hero-search{margin:32px auto 0;max-width:420px;display:flex;gap:8px}
+.hero-search input{flex:1;padding:12px 16px;border-radius:8px;border:none;background:rgba(255,255,255,.1);color:white;font-family:'DM Sans',sans-serif;font-size:.95rem}
+.hero-search input::placeholder{color:#666}
+.hero-search input:focus{outline:1.5px solid var(--green);background:rgba(255,255,255,.15)}
+.section{padding:32px 20px;max-width:700px;margin:0 auto}
+.section-title{font-family:'Syne',sans-serif;font-weight:700;font-size:1.1rem;color:var(--dark);margin-bottom:20px;display:flex;align-items:center;gap:8px}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border)}
+.card{background:white;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.07);margin-bottom:16px;cursor:pointer;transition:transform .2s,box-shadow .2s;border:1px solid var(--border)}
+.card:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(0,0,0,.12)}
+.card-body{padding:16px}
+.card-top{display:flex;justify-content:space-between;align-items:flex-start}
+.card-name{font-family:'Syne',sans-serif;font-weight:700;font-size:1.05rem;color:var(--dark)}
+.card-place{font-size:.8rem;color:var(--gray);margin-top:2px;font-family:'Space Mono',monospace}
+.card-score{background:var(--green);color:white;border-radius:8px;padding:4px 10px;font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;white-space:nowrap;display:flex;align-items:center;gap:4px}
+.card-score.empty{background:#ddd;color:#888}
+.tag{font-size:.72rem;padding:3px 9px;border-radius:100px;background:var(--cream);color:var(--gray);font-family:'Space Mono',monospace}
+.card-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.tag-pick-group{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.tag-pick{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:100px;border:1.5px solid var(--border);background:white;cursor:pointer;font-size:.78rem;font-family:'Space Mono',monospace;color:var(--gray);transition:all .15s;user-select:none;-webkit-user-select:none}
+.tag-pick:hover{border-color:var(--green);color:var(--green-dark)}
+.tag-pick.active{background:var(--green);border-color:var(--green);color:white}
+.detail-header{background:var(--dark);padding:28px 20px 24px}
+.back-btn{display:inline-flex;align-items:center;gap:6px;color:var(--green);font-size:.85rem;cursor:pointer;font-family:'Space Mono',monospace;background:none;border:none;margin-bottom:16px}
+.back-btn:hover{color:var(--green-light)}
+.detail-name{font-family:'Syne',sans-serif;font-weight:800;font-size:1.8rem;color:white;line-height:1.1}
+.detail-place{font-family:'Space Mono',monospace;font-size:.8rem;color:var(--gray);margin-top:4px}
+.score-card{background:white;border-radius:14px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.07);border:1px solid var(--border);margin-bottom:16px}
+.score-title{font-family:'Syne',sans-serif;font-weight:700;font-size:.9rem;color:var(--gray);margin-bottom:14px}
+.score-row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.score-row-label{font-size:.8rem;width:80px;flex-shrink:0;font-family:'Space Mono',monospace;color:var(--dark)}
+.score-bar-wrap{flex:1;background:var(--cream);border-radius:4px;height:8px;overflow:hidden}
+.score-bar{height:8px;border-radius:4px;background:var(--green);transition:width .5s}
+.score-val{font-family:'Syne',sans-serif;font-weight:700;font-size:.9rem;width:24px;text-align:right}
+.bonus-row{display:flex;gap:10px;margin-top:4px;flex-wrap:wrap}
+.bonus-chip{display:flex;align-items:center;gap:4px;font-size:.78rem;font-family:'Space Mono',monospace;padding:4px 10px;border-radius:100px}
+.bonus-chip.on{background:var(--green);color:white}.bonus-chip.off{background:var(--cream);color:var(--gray)}
+.big-score{display:flex;align-items:center;justify-content:center;gap:8px;margin:20px 0}
+.big-score-val{font-family:'Syne',sans-serif;font-weight:800;font-size:3rem;color:var(--green);line-height:1}
+.big-score-label{font-size:.75rem;color:var(--gray);font-family:'Space Mono',monospace}
+.review-card{background:white;border-radius:14px;padding:16px;border:1px solid var(--border);margin-bottom:12px}
+.review-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.reviewer-name{font-family:'Syne',sans-serif;font-weight:700;font-size:.9rem}
+.review-date{font-size:.72rem;color:var(--gray);font-family:'Space Mono',monospace}
+.review-text{font-size:.88rem;color:var(--dark);line-height:1.5;font-style:italic}
+.form-page{padding:24px 20px;max-width:600px;margin:0 auto}
+.form-title{font-family:'Syne',sans-serif;font-weight:800;font-size:1.4rem;margin-bottom:24px}
+.form-group{margin-bottom:18px}
+.form-label{display:block;font-size:.8rem;font-family:'Space Mono',monospace;color:var(--gray);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.form-input,.form-select,.form-textarea{width:100%;padding:11px 14px;border-radius:8px;border:1.5px solid var(--border);background:white;font-family:'DM Sans',sans-serif;font-size:.95rem;color:var(--dark);transition:border-color .2s}
+.form-input:focus,.form-select:focus,.form-textarea:focus{outline:none;border-color:var(--green)}
+.form-textarea{min-height:90px;resize:vertical}
+.checkbox-row{display:flex;align-items:center;gap:10px}
+.checkbox-row input{width:18px;height:18px;accent-color:var(--green)}
+.place-result{padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s}
+.place-result:hover,.place-result:focus{background:rgba(107,191,62,.1)}
+.place-result:last-child{border-bottom:none;border-radius:0 0 12px 12px}
+.place-result-name{font-weight:600;color:var(--dark);font-size:.92rem}
+.place-result-addr{font-size:.8rem;color:var(--text-light);margin-top:2px}
+.place-result-type{display:inline-block;font-size:.7rem;padding:2px 6px;border-radius:4px;background:rgba(107,191,62,.1);color:var(--green-dark);margin-top:3px}
+.place-searching{padding:14px;text-align:center;color:var(--text-light);font-size:.85rem}
+.glob-picker{display:flex;gap:6px}
+.glob-pick{cursor:pointer;opacity:.25;transition:opacity .15s,transform .15s;filter:grayscale(1)}
+.glob-pick.active{opacity:1;filter:none;transform:scale(1.05)}
+.login-wrap{min-height:calc(100vh - 56px);display:flex;align-items:center;justify-content:center;padding:24px}
+.login-box{background:white;border-radius:20px;padding:32px 28px;max-width:380px;width:100%;box-shadow:0 4px 30px rgba(0,0,0,.08);border:1px solid var(--border)}
+.login-logo{text-align:center;margin-bottom:24px}
+.login-title{font-family:'Syne',sans-serif;font-weight:800;font-size:1.4rem;text-align:center;margin-bottom:4px}
+.login-sub{text-align:center;color:var(--gray);font-size:.85rem;margin-bottom:24px}
+.error-msg{background:#ffeaea;color:#c0392b;border-radius:8px;padding:10px 14px;font-size:.85rem;margin-bottom:14px;display:none}
+.admin-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:20px;overflow-x:auto}
+.admin-tab{white-space:nowrap;padding:10px 18px;font-family:'Space Mono',monospace;font-size:.8rem;cursor:pointer;border-bottom:2px solid transparent;color:var(--gray);transition:all .2s}
+.admin-tab.active{color:var(--green);border-bottom-color:var(--green)}
+.admin-table{width:100%;border-collapse:collapse;font-size:.85rem}
+.admin-table th{text-align:left;padding:8px 12px;font-family:'Space Mono',monospace;font-size:.7rem;color:var(--gray);background:var(--cream)}
+.admin-table td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.role-badge{font-size:.7rem;padding:2px 8px;border-radius:4px;font-family:'Space Mono',monospace;font-weight:700}
+.role-admin{background:#fff3cd;color:#856404}.role-reviewer{background:#d1e7dd;color:#0a5c36}.role-user{background:#e2e3e5;color:#555}
+.filter-bar{display:flex;gap:8px;padding:16px 20px;overflow-x:auto;background:white;border-bottom:1px solid var(--border)}
+.filter-chip{white-space:nowrap;padding:6px 14px;border-radius:100px;font-size:.78rem;font-family:'Space Mono',monospace;cursor:pointer;border:1.5px solid var(--border);background:white;color:var(--gray);transition:all .2s}
+.filter-chip.active{background:var(--green);color:white;border-color:var(--green)}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--dark);color:white;padding:12px 20px;border-radius:10px;font-size:.85rem;font-family:'Space Mono',monospace;transition:transform .3s;z-index:999;white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.empty{text-align:center;padding:48px 20px;color:var(--gray)}.empty p{font-family:'Space Mono',monospace;font-size:.8rem;margin-top:12px}
+.spinner{display:inline-block;width:24px;height:24px;border:2px solid #ccc;border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-wrap{text-align:center;padding:40px;color:var(--gray)}
+.invite-box{background:#f0faf0;border:1px solid var(--green);border-radius:10px;padding:14px;margin-top:12px;font-size:.82rem;font-family:'Space Mono',monospace;word-break:break-all}
+.hamburger{display:none;flex-direction:column;justify-content:center;gap:5px;cursor:pointer;padding:8px 9px;background:rgba(255,255,255,.13);border:1.5px solid rgba(255,255,255,.22);border-radius:8px}
+.hamburger span{display:block;width:22px;height:2.5px;background:white;border-radius:2px;transition:all .25s;box-shadow:0 1px 2px rgba(0,0,0,.4)}
+@media(max-width:640px){
+  .hamburger{display:flex}
+  .nav-actions{display:none;position:absolute;top:56px;left:0;right:0;background:var(--dark);flex-direction:column;padding:10px 16px 16px;gap:2px;border-top:1px solid rgba(255,255,255,.1);z-index:1099}
+  .nav-actions.open{display:flex}
+  .nav-actions .btn{width:100%;text-align:left;padding:11px 14px;border-radius:6px}
+  .nav-actions .nav-user{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:4px}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" onclick="showPage('home')">
+    <svg viewBox="0 0 100 100" fill="none"><path d="M50 5C25.1 5 5 25.1 5 50S25.1 95 50 95 95 74.9 95 50C95 38.1 90.1 27.3 82.2 19.7" stroke="#6BBF3E" stroke-width="10" stroke-linecap="round"/><path d="M50 20C33.4 20 20 33.4 20 50S33.4 80 50 80 80 66.6 80 50C80 41.7 76.6 34.2 71.1 28.8" stroke="#6BBF3E" stroke-width="9" stroke-linecap="round"/><path d="M50 35C41.7 35 35 41.7 35 50S41.7 65 50 65 65 58.3 65 50C65 45.8 63.2 42 60.3 39.3" stroke="#6BBF3E" stroke-width="8" stroke-linecap="round"/><circle cx="50" cy="50" r="6" fill="#6BBF3E"/></svg>
+    byte4lunch
+  </a>
+  <button class="hamburger" id="hamburgerBtn" onclick="toggleMenu()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="nav-actions" id="navActions">
+    <span class="nav-user" id="navUser"></span>
+    <button class="btn btn-ghost" onclick="showPage('list')" id="navList" style="display:none">Ristoranti</button>
+    <button class="btn btn-ghost" onclick="showPage('admin')" id="navAdmin" style="display:none">Admin</button>
+    <button class="btn btn-ghost" onclick="showPage('newReview')" id="navReview" style="display:none">+ Recensione</button>
+    <button class="btn btn-ghost" onclick="showPage('password')" id="navPassword" style="display:none">🔒 Password</button>
+    <button class="btn btn-ghost" onclick="logout()" id="navLogout" style="display:none">Esci</button>
+    <button class="btn btn-primary" onclick="showPage('login')" id="navLogin">Accedi</button>
+  </div>
+</nav>
+<div class="toast" id="toast"></div>
+
+<!-- HOME -->
+<div class="page active" id="page-home">
+  <div class="hero">
+    <div class="hero-logo-wrap">
+      <svg viewBox="0 0 100 100" fill="none" width="90" height="90"><path d="M50 5C25.1 5 5 25.1 5 50S25.1 95 50 95 95 74.9 95 50C95 38.1 90.1 27.3 82.2 19.7" stroke="#6BBF3E" stroke-width="10" stroke-linecap="round"/><path d="M50 20C33.4 20 20 33.4 20 50S33.4 80 50 80 80 66.6 80 50C80 41.7 76.6 34.2 71.1 28.8" stroke="#6BBF3E" stroke-width="9" stroke-linecap="round"/><path d="M50 35C41.7 35 35 41.7 35 50S41.7 65 50 65 65 58.3 65 50C65 45.8 63.2 42 60.3 39.3" stroke="#6BBF3E" stroke-width="8" stroke-linecap="round"/><circle cx="50" cy="50" r="6" fill="#6BBF3E"/></svg>
+      <div><h1><span>byte</span>4lunch</h1><p class="payoff">lunch driven effectiveness</p></div>
+    </div>
+    <div class="hero-search">
+      <input type="text" id="heroSearch" placeholder="Cerca luogo o ristorante..." oninput="debounceSearch()" onkeydown="if(event.key==='Enter')goSearch()">
+      <button class="btn btn-primary" onclick="goSearch()">Cerca</button>
+    </div>
+    <div style="margin-top:12px">
+      <button class="btn btn-outline" id="nearMeBtn" onclick="enableNearMe()" style="font-size:.78rem;padding:7px 16px;border-color:rgba(107,191,62,.5);color:var(--green-light)">📍 Vicino a me</button>
+    </div>
+  </div>
+  <div id="reviewerBanner" style="padding:0 16px;margin-bottom:8px"></div>
+  <div id="badgeBanner" style="padding:0 16px;margin-bottom:8px"></div>
+  <div class="section">
+    <div class="section-title">Ultime recensioni</div>
+    <div id="homeLatest"><div class="loading-wrap"><div class="spinner"></div></div></div>
+    <button class="btn btn-outline" style="width:100%;margin-top:8px" onclick="showPage('list')">Vedi tutti i ristoranti →</button>
+  </div>
+  <div class="section">
+    <div class="section-title">Classifica recensori</div>
+    <div id="homeLeaderboard"><div class="loading-wrap"><div class="spinner"></div></div></div>
+  </div>
+</div>
+
+<!-- LIST -->
+<div class="page" id="page-list">
+  <div class="filter-bar" id="filterBar"></div>
+  <div id="mapWrap" style="height:280px;border-radius:12px;overflow:hidden;margin:0 16px 12px;border:2px solid var(--border)"></div>
+  <div class="section">
+    <div class="section-title">Tutti i ristoranti</div>
+    <div id="listCards"><div class="loading-wrap"><div class="spinner"></div></div></div>
+  </div>
+</div>
+
+<!-- DETAIL -->
+<div class="page" id="page-detail">
+  <div class="detail-header">
+    <button class="back-btn" onclick="goBack()">← Indietro</button>
+    <div class="detail-name" id="detailName"></div>
+    <div class="detail-place" id="detailPlace"></div>
+  </div>
+  <div class="section" id="detailContent"></div>
+</div>
+
+<!-- NEW REVIEW -->
+<div class="page" id="page-newReview">
+  <div class="form-page">
+    <div class="form-title">Nuova recensione</div>
+    <div class="form-group"><label class="form-label">Ristorante esistente</label><select class="form-select" id="rvRistorante" onchange="onRestaurantSelect()"><option value="">Seleziona...</option></select></div>
+    <div class="form-group">
+      <label class="form-label">— oppure cerca nuovo ristorante —</label>
+      <div style="position:relative">
+        <input class="form-input" id="rvSearchPlace" placeholder="🔍 Cerca su mappa... es. Pizzeria Da Mario" autocomplete="off" style="font-size:1rem">
+        <div id="rvSearchResults" style="position:absolute;top:100%;left:0;right:0;z-index:200;background:white;border:1.5px solid var(--border);border-top:none;border-radius:0 0 12px 12px;max-height:240px;overflow-y:auto;display:none;box-shadow:0 12px 32px rgba(0,0,0,.18)"></div>
+      </div>
+      <div id="rvSelectedPlace" style="display:none;margin-top:10px;padding:12px;background:rgba(107,191,62,.08);border:1px solid rgba(107,191,62,.3);border-radius:10px">
+        <div style="display:flex;justify-content:space-between;align-items:start">
+          <div>
+            <strong id="rvSelName" style="color:var(--green-dark)"></strong><br>
+            <span id="rvSelAddr" style="font-size:.85rem;color:var(--text-light)"></span>
+          </div>
+          <button type="button" onclick="clearPlaceSelection()" style="background:none;border:none;font-size:1.1rem;cursor:pointer;padding:4px;color:var(--text-light)">✕</button>
+        </div>
+      </div>
+      <input type="hidden" id="rvNewName">
+      <input type="hidden" id="rvNewPlace">
+      <input type="hidden" id="rvNewLat">
+      <input type="hidden" id="rvNewLng">
+      <div style="text-align:right;margin-top:6px">
+        <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:4px 10px;color:var(--gray)" onclick="toggleManualEntry()">✏️ Non trovato? Inserisci manualmente</button>
+      </div>
+      <div id="rvManualSection" style="display:none;margin-top:6px;padding:12px;background:#f8f9fa;border:1px solid var(--border);border-radius:10px">
+        <div style="font-size:.78rem;font-family:'Space Mono',monospace;color:var(--gray);margin-bottom:8px">Inserisci il ristorante a mano:</div>
+        <input class="form-input" id="rvManualName" placeholder="Nome ristorante *" style="margin-bottom:8px">
+        <input class="form-input" id="rvManualCity" placeholder="Città / Comune (es. Quarto d'Altino)">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Indirizzo <span style="font-size:.7rem;font-weight:400;text-transform:none;letter-spacing:0">(compilato automaticamente, modificabile)</span></label>
+      <input class="form-input" id="rvAddress" placeholder="Via Roma 12, Città">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Telefono <span style="font-size:.7rem;font-weight:400;text-transform:none;letter-spacing:0">(opzionale)</span></label>
+      <input class="form-input" id="rvPhone" placeholder="+39 041 123456" type="tel">
+    </div>
+    <div class="form-group"><label class="form-label">Data visita</label><input class="form-input" type="date" id="rvDate"></div>
+    <div class="form-group"><label class="form-label">Qualità cibo (1-5 globi)</label><div class="glob-picker" id="pickQualita" data-field="qualita"></div></div>
+    <div class="form-group"><label class="form-label">Velocità servizio (1-5 globi)</label><div class="glob-picker" id="pickVelocita" data-field="velocita"></div></div>
+    <div class="form-group"><label class="form-label">Rapporto qualità/prezzo (1-5 globi)</label><div class="glob-picker" id="pickPrezzo" data-field="prezzo"></div></div>
+    <div class="form-group">
+      <label class="form-label">Bonus</label>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <label class="checkbox-row"><input type="checkbox" id="rvSimpatia"> <span>😄 Simpatia del personale</span></label>
+        <label class="checkbox-row"><input type="checkbox" id="rvCaffe"> <span>☕ Caffè incluso / ottimo</span></label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tag ristorante <span style="font-size:.7rem;font-weight:400;text-transform:none;letter-spacing:0">(aggiorna le caratteristiche del locale)</span></label>
+      <div class="tag-pick-group" id="rvTagGroup">
+        <div class="tag-pick" onclick="toggleTag(this)" data-tag="menu fisso">🍽️ Menu fisso</div>
+        <div class="tag-pick" onclick="toggleTag(this)" data-tag="opzioni vegane">🌱 Opzioni vegane</div>
+        <div class="tag-pick" onclick="toggleTag(this)" data-tag="opzioni vegetariane">🥦 Vegetariane</div>
+        <div class="tag-pick" onclick="toggleTag(this)" data-tag="gluten free">🌾 Gluten free</div>
+        <div class="tag-pick" onclick="toggleTag(this)" data-tag="delivery disponibile">🛵 Delivery</div>
+        <div class="tag-pick" onclick="toggleTag(this)" data-tag="prenotazione consigliata">📅 Prenotazione</div>
+        <div class="tag-pick" onclick="toggleTag(this)" data-tag="pet friendly">🐾 Pet friendly</div>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">Nota / commento</label><textarea class="form-textarea" id="rvNota" placeholder="Com'era? Torneresti?"></textarea></div>
+    <div class="error-msg" id="rvError"></div>
+    <button class="btn btn-primary" style="width:100%;padding:13px" id="rvSubmit" onclick="submitReview()">Pubblica recensione</button>
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div class="page" id="page-login">
+  <div class="login-wrap"><div class="login-box">
+    <div class="login-logo"><svg viewBox="0 0 100 100" fill="none" width="56"><path d="M50 5C25.1 5 5 25.1 5 50S25.1 95 50 95 95 74.9 95 50C95 38.1 90.1 27.3 82.2 19.7" stroke="#6BBF3E" stroke-width="10" stroke-linecap="round"/><path d="M50 20C33.4 20 20 33.4 20 50S33.4 80 50 80 80 66.6 80 50C80 41.7 76.6 34.2 71.1 28.8" stroke="#6BBF3E" stroke-width="9" stroke-linecap="round"/><path d="M50 35C41.7 35 35 41.7 35 50S41.7 65 50 65 65 58.3 65 50C65 45.8 63.2 42 60.3 39.3" stroke="#6BBF3E" stroke-width="8" stroke-linecap="round"/><circle cx="50" cy="50" r="6" fill="#6BBF3E"/></svg></div>
+    <div id="loginPanel">
+      <div class="login-title">byte4lunch</div><div class="login-sub">Accedi con il tuo account</div>
+      <div class="error-msg" id="loginError"></div>
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="loginEmail" placeholder="nome@omega.it" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <div class="form-group"><label class="form-label">Password</label><input class="form-input" type="password" id="loginPwd" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <button class="btn btn-primary" style="width:100%;padding:12px;font-size:1rem;margin-top:4px" id="loginBtn" onclick="doLogin()">Accedi</button>
+      <div style="display:flex;align-items:center;gap:10px;margin:16px 0 4px">
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-size:.72rem;color:var(--gray);font-family:'Space Mono',monospace;white-space:nowrap">nuovo su byte4lunch?</span>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>
+      <button class="btn btn-outline" style="width:100%;padding:10px;font-size:.9rem" onclick="showRegister()">Crea account →</button>
+    </div>
+    <div id="registerPanel" style="display:none">
+      <div class="login-title">Registrati</div><div class="login-sub">Crea il tuo account</div>
+      <div style="margin-bottom:14px;padding:9px 12px;background:#f0faf0;border:1px solid var(--green);border-radius:8px;font-size:.75rem;font-family:'Space Mono',monospace;color:var(--green-dark)">💡 Se usi la tua email <strong>@omegagruppo.it</strong> diventi automaticamente reviewer</div>
+      <div class="error-msg" id="regError"></div>
+      <div class="form-group"><label class="form-label">Nome completo</label><input class="form-input" id="regName" placeholder="Mario Rossi" onkeydown="if(event.key==='Enter')doRegister()"></div>
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="regEmail" placeholder="nome@omegagruppo.it" onkeydown="if(event.key==='Enter')doRegister()"></div>
+      <div class="form-group"><label class="form-label">Password</label><input class="form-input" type="password" id="regPwd" placeholder="••••••••" onkeydown="if(event.key==='Enter')doRegister()" oninput="checkRegPwdStrength()"></div>
+      <div id="regPwdRules" style="font-size:.75rem;margin:-6px 0 10px;color:var(--gray)">Min 8 caratteri, maiuscola, minuscola, numero, carattere speciale</div>
+      <button class="btn btn-primary" style="width:100%;padding:12px;font-size:1rem;margin-top:4px" id="regBtn" onclick="doRegister()">Crea account</button>
+      <button class="btn btn-outline" style="width:100%;padding:10px;font-size:.9rem;margin-top:10px" onclick="showLogin()">← Torna al login</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- PASSWORD -->
+<div class="page" id="page-password">
+  <div class="form-page">
+    <div class="form-title">Cambia password</div>
+    <div class="error-msg" id="pwdError"></div>
+    <div class="form-group"><label class="form-label">Password attuale</label><input class="form-input" type="password" id="pwdCurrent" placeholder="••••••••"></div>
+    <div class="form-group"><label class="form-label">Nuova password</label><input class="form-input" type="password" id="pwdNew" placeholder="••••••••" oninput="checkPwdStrength()"></div>
+    <div id="pwdRules" style="font-size:.78rem;margin:-6px 0 10px;color:var(--gray)">
+      <div id="pr1">✗ Minimo 8 caratteri</div>
+      <div id="pr2">✗ Una lettera maiuscola</div>
+      <div id="pr3">✗ Una lettera minuscola</div>
+      <div id="pr4">✗ Un numero</div>
+      <div id="pr5">✗ Un carattere speciale (!@#$%...)</div>
+    </div>
+    <div class="form-group"><label class="form-label">Conferma nuova password</label><input class="form-input" type="password" id="pwdConfirm" placeholder="••••••••"></div>
+    <button class="btn btn-primary" style="width:100%;padding:12px;font-size:1rem;margin-top:4px" id="pwdBtn" onclick="doChangePassword()">Aggiorna password</button>
+    <div id="pwdSuccess" style="display:none;margin-top:12px;background:#d1e7dd;border:1px solid var(--green);border-radius:10px;padding:14px;text-align:center;font-size:.88rem;color:#0a5c36"></div>
+  </div>
+</div>
+
+<!-- ADMIN -->
+<div class="page" id="page-admin">
+  <div class="form-page">
+    <div class="form-title">Pannello amministratore</div>
+    <div class="admin-tabs">
+      <div class="admin-tab active" onclick="adminTab('users',this)">Utenti</div>
+      <div class="admin-tab" onclick="adminTab('reviews',this)">Recensioni</div>
+      <div class="admin-tab" onclick="adminTab('restaurants',this)">Ristoranti</div>
+    </div>
+    <div id="adminContent"></div>
+  </div>
+</div>
+
+<script>
+const API='/api';
+let currentUser=null,currentToken=null,currentDetailId=null,prevPage='home',currentFilter='all',currentAdminTab='users';
+let reviewScores={qualita:0,velocita:0,prezzo:0};
+let userCoords=null,nearMeMode=false,geocodeCache={},searchDebounceTimer=null;
+
+// ── Geolocalizzazione ─────────────────────────────────────
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371,dLat=(lat2-lat1)*Math.PI/180,dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+async function geocodePlace(place){
+  if(geocodeCache[place])return geocodeCache[place];
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(place+', Italy')}&format=json&limit=1`,{headers:{'User-Agent':'byte4lunch/1.0'}});
+    const d=await r.json();
+    if(d.length){const c={lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};geocodeCache[place]=c;return c;}
+  }catch{}
+  return null;
+}
+function fmtDist(km){return km<1?(Math.round(km*1000)+'m'):(km.toFixed(1)+'km');}
+
+// ── Ricerca ristoranti (via server → Overpass + Nominatim) ──
+let placeSearchTimer=null;
+function initPlaceSearch(){
+  const input=document.getElementById('rvSearchPlace');
+  const results=document.getElementById('rvSearchResults');
+  if(!input)return;
+  input.addEventListener('input',()=>{
+    clearTimeout(placeSearchTimer);
+    const q=input.value.trim();
+    if(q.length<2){results.style.display='none';return;}
+    results.innerHTML='<div class="place-searching">🔍 Ricerca ristoranti...</div>';
+    results.style.display='block';
+    placeSearchTimer=setTimeout(()=>searchPlaces(q),500);
+  });
+  input.addEventListener('focus',()=>{if(results.children.length>0&&input.value.trim().length>=2)results.style.display='block';});
+  document.addEventListener('click',e=>{if(!e.target.closest('#rvSearchPlace')&&!e.target.closest('#rvSearchResults'))results.style.display='none';});
+}
+
+async function searchPlaces(query){
+  const results=document.getElementById('rvSearchResults');
+  function renderPlaces(data){
+    results._placeData=data;
+    results.innerHTML=data.map((p,i)=>{
+      return `<div class="place-result" tabindex="0" onclick="selectPlace(${i})" data-idx="${i}">
+        <div class="place-result-name">${esc(p.name)}</div>
+        <div class="place-result-addr">📍 ${esc(p.addr||'Posizione disponibile')}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px">
+          ${p.type?`<span class="place-result-type">${esc(p.type)}</span>`:''}
+          ${p.cuisine?`<span class="place-result-type" style="background:rgba(66,133,244,.1);color:#4285f4">${esc(p.cuisine.replace(/;/g,', '))}</span>`:''}
+          ${p.source==='osm'?'<span class="place-result-type" style="background:rgba(66,133,244,.08);color:#666">✓ su OpenStreetMap</span>':''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+  // Try server-side search first (Overpass + Nominatim) — 5s timeout
+  try{
+    const ctrl=new AbortController();const tid=setTimeout(()=>ctrl.abort(),5000);
+    const res=await fetch(API+'/restaurants/search-places?q='+encodeURIComponent(query),{signal:ctrl.signal});
+    clearTimeout(tid);
+    const data=await res.json();
+    if(data.length){renderPlaces(data);return;}
+  }catch(e){}
+  // Fallback: Nominatim direttamente dal browser (nessun cold-start, nessuna chiave)
+  try{
+    const nr=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(query)+'&format=json&limit=15&addressdetails=1&extratags=1&namedetails=1&countrycodes=it&accept-language=it&dedupe=1');
+    const nd=await nr.json();
+    const mapped=(nd||[]).map(p=>{
+      const a=p.address||{};const ext=p.extratags||{};
+      const road=a.road||a.pedestrian||a.footway||'';
+      const street=[road,a.house_number].filter(Boolean).join(' ');
+      const city=a.city||a.town||a.village||a.suburb||a.municipality||a.county||'';
+      const fallbackAddr=p.display_name.split(',').slice(1,4).map(s=>s.trim()).filter(Boolean).join(', ');
+      const addr=[street,a.postcode,city].filter(Boolean).join(', ')||fallbackAddr;
+      const name=(p.namedetails&&p.namedetails.name)||p.display_name.split(',')[0].trim();
+      const phone=ext.phone||ext['contact:phone']||ext['contact:mobile']||'';
+      const cuisine=ext.cuisine||'';
+      return {name,addr,city,lat:parseFloat(p.lat),lon:parseFloat(p.lon),phone,cuisine,type:p.type||p.class||'',source:'osm'};
+    }).filter(f=>f.name&&f.lat&&f.lon);
+    if(!mapped.length){results.innerHTML=`<div class="place-searching">Nessun risultato. Prova con il nome completo (es. "Trattoria Da Mario, Quarto d'Altino")</div>`;return;}
+    renderPlaces(mapped);
+  }catch(e){
+    results.innerHTML='<div class="place-searching">Errore di ricerca. Riprova.</div>';
+  }
+}
+
+function selectPlace(idx){
+  const results=document.getElementById('rvSearchResults');
+  const data=results._placeData;if(!data||!data[idx])return;
+  const p=data[idx];
+
+  // Fill hidden fields
+  document.getElementById('rvNewName').value=p.name;
+  document.getElementById('rvNewPlace').value=p.city||'';
+  document.getElementById('rvNewLat').value=p.lat;
+  document.getElementById('rvNewLng').value=p.lon;
+  document.getElementById('rvAddress').value=p.addr;
+  if(p.phone)document.getElementById('rvPhone').value=p.phone;
+
+  // Show selection card
+  document.getElementById('rvSelName').textContent=p.name;
+  const details=[p.addr,p.phone?'Tel: '+p.phone:'',p.cuisine?'Cucina: '+p.cuisine.replace(/;/g,', '):''].filter(Boolean).join(' — ');
+  document.getElementById('rvSelAddr').textContent=details;
+  document.getElementById('rvSelectedPlace').style.display='block';
+  document.getElementById('rvSearchPlace').value='';
+  results.style.display='none';
+
+  // Deselect existing restaurant + hide manual entry
+  document.getElementById('rvRistorante').value='';
+  document.getElementById('rvManualSection').style.display='none';
+  document.getElementById('rvManualName').value='';
+  document.getElementById('rvManualCity').value='';
+  setTags([]);
+}
+function clearPlaceSelection(){
+  document.getElementById('rvSelectedPlace').style.display='none';
+  document.getElementById('rvNewName').value='';
+  document.getElementById('rvNewPlace').value='';
+  document.getElementById('rvNewLat').value='';
+  document.getElementById('rvNewLng').value='';
+  document.getElementById('rvAddress').value='';
+  document.getElementById('rvPhone').value='';
+  document.getElementById('rvSearchPlace').value='';
+}
+function toggleManualEntry(){
+  const s=document.getElementById('rvManualSection');
+  const show=s.style.display==='none';
+  s.style.display=show?'':'none';
+  if(show){clearPlaceSelection();document.getElementById('rvRistorante').value='';setTags([]);}
+}
+function toggleTag(el){el.classList.toggle('active');}
+function getSelectedTags(){return[...document.querySelectorAll('#rvTagGroup .tag-pick.active')].map(el=>el.dataset.tag);}
+function setTags(arr){document.querySelectorAll('#rvTagGroup .tag-pick').forEach(el=>{el.classList.toggle('active',(arr||[]).includes(el.dataset.tag));});}
+function enableNearMe(){
+  if(!navigator.geolocation){toast('Geolocalizzazione non supportata dal browser');return;}
+  showPage('list');
+  const btn=document.getElementById('nearMeBtn');if(btn){btn.textContent='📍 Rilevamento…';btn.disabled=true;}
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    userCoords={lat:pos.coords.latitude,lon:pos.coords.longitude};
+    nearMeMode=true;currentFilter='all';
+    const b=document.getElementById('nearMeBtn');if(b){b.textContent='📍 Vicino a me ✓';b.disabled=false;}
+    await renderList();
+    toast('📍 Ristoranti ordinati per distanza');
+  },()=>{
+    const b=document.getElementById('nearMeBtn');if(b){b.textContent='📍 Vicino a me';b.disabled=false;}
+    toast('Impossibile rilevare la posizione. Controlla i permessi.');
+  },{timeout:8000});
+}
+function disableNearMe(){nearMeMode=false;const btn=document.getElementById('nearMeBtn');if(btn)btn.textContent='📍 Vicino a me';}
+function debounceSearch(){clearTimeout(searchDebounceTimer);searchDebounceTimer=setTimeout(()=>{if(document.querySelector('#page-list.active'))renderList();},400);}
+
+function saveSession(t,u){currentToken=t;currentUser=u;sessionStorage.setItem('b4l_t',t);sessionStorage.setItem('b4l_u',JSON.stringify(u));}
+function clearSession(){currentToken=null;currentUser=null;sessionStorage.removeItem('b4l_t');sessionStorage.removeItem('b4l_u');}
+function loadSession(){const t=sessionStorage.getItem('b4l_t'),u=sessionStorage.getItem('b4l_u');if(t&&u){currentToken=t;currentUser=JSON.parse(u);}}
+
+async function api(method,path,body){
+  const opts={method,headers:{'Content-Type':'application/json'}};
+  if(currentToken)opts.headers['Authorization']='Bearer '+currentToken;
+  if(body)opts.body=JSON.stringify(body);
+  const res=await fetch(API+path,opts);
+  const data=await res.json();
+  if(!res.ok)throw new Error(data.error||'Errore server');
+  return data;
+}
+
+function globo(size,active){const c=active?'#6BBF3E':'#d0d0c8';return`<svg width="${size}" height="${size}" viewBox="0 0 100 100" fill="none"><path d="M50 5C25.1 5 5 25.1 5 50S25.1 95 50 95 95 74.9 95 50C95 38.1 90.1 27.3 82.2 19.7" stroke="${c}" stroke-width="10" stroke-linecap="round"/><path d="M50 20C33.4 20 20 33.4 20 50S33.4 80 50 80 80 66.6 80 50C80 41.7 76.6 34.2 71.1 28.8" stroke="${c}" stroke-width="9" stroke-linecap="round"/><path d="M50 35C41.7 35 35 41.7 35 50S41.7 65 50 65 65 58.3 65 50C65 45.8 63.2 42 60.3 39.3" stroke="${c}" stroke-width="8" stroke-linecap="round"/><circle cx="50" cy="50" r="6" fill="${c}"/></svg>`;}
+function renderGlobi(score,size){let h='';for(let i=1;i<=5;i++)h+=globo(size,i<=score);return h;}
+function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
+
+function showPage(name,param){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  window.scrollTo(0,0);
+  document.getElementById('navActions').classList.remove('open');
+  if(name==='home')renderHome();
+  if(name==='list'){renderList();setTimeout(()=>{if(listMap)listMap.invalidateSize();},200);}
+  if(name==='newReview')renderNewReview(param);
+  if(name==='admin'){currentAdminTab='users';document.querySelectorAll('.admin-tab').forEach((t,i)=>t.classList.toggle('active',i===0));renderAdmin();}
+  if(name==='login'){showLogin();checkInviteParam();}
+  if(name==='password'){document.getElementById('pwdCurrent').value='';document.getElementById('pwdNew').value='';document.getElementById('pwdConfirm').value='';document.getElementById('pwdError').style.display='none';document.getElementById('pwdSuccess').style.display='none';checkPwdStrength();}
+}
+function goBack(){showPage(prevPage||'list');}
+function toggleMenu(){document.getElementById('navActions').classList.toggle('open');}
+async function onRestaurantSelect(){
+  const rid=parseInt(document.getElementById('rvRistorante').value);
+  if(!rid){document.getElementById('rvAddress').value='';document.getElementById('rvPhone').value='';setTags([]);return;}
+  // Clear new restaurant search if user picks existing
+  clearPlaceSelection();
+  try{const r=await api('GET','/restaurants/'+rid);document.getElementById('rvAddress').value=r.address||'';document.getElementById('rvPhone').value=r.phone||'';setTags(r.tags||[]);}catch{}
+}
+
+async function renderHome(){
+  try{
+    const data=await api('GET','/restaurants');
+    const latest=data.slice(0,2);
+    document.getElementById('homeLatest').innerHTML=latest.length?latest.map(r=>card(r)).join(''):'<div class="empty"><p>Nessuna recensione ancora</p></div>';
+    // Banner richiesta reviewer per utenti con ruolo "user"
+    const bannerEl=document.getElementById('reviewerBanner');
+    if(bannerEl){
+      if(currentUser&&currentUser.role==='user'){
+        const me=await api('GET','/auth/me');
+        if(me.role_request==='pending'){
+          bannerEl.innerHTML='<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:14px;text-align:center;font-size:.88rem">⏳ Richiesta reviewer inviata — in attesa di approvazione</div>';
+        }else{
+          bannerEl.innerHTML='<div style="background:#e8f5e9;border:1px solid var(--green);border-radius:10px;padding:14px;text-align:center;font-size:.88rem">Vuoi scrivere recensioni? <button class="btn btn-primary" style="margin-left:8px;padding:6px 16px;font-size:.85rem" onclick="requestReviewer()">Diventa reviewer</button></div>';
+        }
+      }else{bannerEl.innerHTML='';}
+    }
+    // Badge utente corrente
+    const badgeEl=document.getElementById('badgeBanner');
+    if(badgeEl){
+      if(currentUser&&['admin','reviewer'].includes(currentUser.role)){
+        try{
+          const bd=await api('GET','/users/me/badge');
+          if(bd.badge){
+            badgeEl.innerHTML=`<div style="background:linear-gradient(135deg,${bd.badge.color}22,${bd.badge.color}11);border:1px solid ${bd.badge.color};border-radius:10px;padding:14px;text-align:center">
+              <span style="font-size:1.8rem">${bd.badge.icon}</span>
+              <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1.1rem;margin:4px 0">Livello ${bd.badge.name}</div>
+              <div style="font-size:.82rem;color:var(--gray)">${bd.count} recensioni${bd.next?' — ancora '+(bd.next.remaining)+' per '+bd.next.icon+' '+bd.next.name:' — livello massimo raggiunto! 🎉'}</div>
+            </div>`;
+          }else if(bd.next){
+            badgeEl.innerHTML=`<div style="background:#f8f9fa;border:1px solid #dee2e6;border-radius:10px;padding:14px;text-align:center;font-size:.88rem">${bd.count} recension${bd.count===1?'e':'i'} — ancora ${bd.next.remaining} per il primo badge ${bd.next.icon} ${bd.next.name}</div>`;
+          }else{badgeEl.innerHTML='';}
+        }catch{badgeEl.innerHTML='';}
+      }else{badgeEl.innerHTML='';}
+    }
+    // Classifica recensori
+    try{
+      const lb=await api('GET','/users/leaderboard');
+      const lbEl=document.getElementById('homeLeaderboard');
+      if(lb.length){
+        lbEl.innerHTML=lb.map((r,i)=>{
+          const pos=i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'.';
+          const badge=r.badge?`<span style="font-size:.9rem" title="Livello ${r.badge.name}">${r.badge.icon}</span>`:'';
+          return`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;${i<3?'font-weight:700':''}${i>0?';border-top:1px solid #f0f0f0':''}">
+            <span style="font-size:1.1rem;min-width:28px;text-align:center">${pos}</span>
+            <span style="flex:1">${esc(r.name)} ${badge}</span>
+            <span style="font-family:'Space Mono',monospace;font-size:.85rem;color:var(--gray)">${r.review_count} rec.</span>
+          </div>`;
+        }).join('');
+      }else{lbEl.innerHTML='<div class="empty"><p>Nessuna recensione ancora</p></div>';}
+    }catch{}
+  }catch{document.getElementById('homeLatest').innerHTML='<div class="empty"><p>Errore caricamento</p></div>';}
+}
+async function requestReviewer(){
+  try{await api('POST','/users/request-reviewer');toast('Richiesta inviata! 🎉');renderHome();}catch(e){toast('Errore: '+e.message);}
+}
+function goSearch(){showPage('list');}
+
+let listMap=null,listMarkers=null;
+async function renderList(){
+  document.getElementById('listCards').innerHTML='<div class="loading-wrap"><div class="spinner"></div></div>';
+  try{
+    const places=await api('GET','/restaurants/places');
+    const fb=document.getElementById('filterBar');
+    const nearChip=`<div class="filter-chip ${nearMeMode?'active':''}" onclick="enableNearMe()" title="Ordina per distanza dalla tua posizione">📍 Vicino a me</div>`;
+    fb.innerHTML=nearChip+['Tutti',...places].map((p,i)=>{const v=i===0?'all':p;return`<div class="filter-chip ${!nearMeMode&&currentFilter===v?'active':''}" onclick="setFilter('${v}',this)">${p}</div>`;}).join('');
+    const q=document.getElementById('heroSearch').value.trim();
+    let url='/restaurants';const ps=[];
+    if(q)ps.push('q='+encodeURIComponent(q));
+    if(!nearMeMode&&currentFilter!=='all')ps.push('place='+encodeURIComponent(currentFilter));
+    if(ps.length)url+='?'+ps.join('&');
+    let data=await api('GET',url);
+
+    // Geocodifica ristoranti senza coordinate salvate (max 3 alla volta per non sovraccaricare Nominatim)
+    const geoData=[];
+    let geoCount=0;
+    for(const r of data){
+      let lat=r.lat,lng=r.lng;
+      if((!lat||!lng)&&geoCount<3){
+        geoCount++;
+        // Prova prima con indirizzo completo, poi con nome+luogo, poi solo luogo
+        const queries=[
+          r.address?r.address+', '+r.place:null,
+          r.name+', '+r.place,
+          r.place
+        ].filter(Boolean);
+        for(const q of queries){
+          const coords=await geocodePlace(q);
+          if(coords){lat=coords.lat;lng=coords.lon;
+            if(currentUser&&['admin','reviewer'].includes(currentUser.role)){
+              try{await api('PATCH','/restaurants/'+r.id,{lat,lng,address:r.address||null,phone:r.phone||null});}catch{}
+            }
+            break;
+          }
+        }
+      }
+      const dist=(userCoords&&lat)?haversine(userCoords.lat,userCoords.lon,lat,lng):null;
+      geoData.push({...r,lat,lng,_dist:dist});
+    }
+
+    // Ordina per distanza se in modalità "vicino a me"
+    if(nearMeMode&&userCoords){
+      geoData.sort((a,b)=>{
+        if(a._dist==null&&b._dist==null)return 0;
+        if(a._dist==null)return 1;if(b._dist==null)return-1;
+        return a._dist-b._dist;
+      });
+    }
+
+    // Render cards
+    document.getElementById('listCards').innerHTML=geoData.length?geoData.map(r=>card(r,r._dist)).join(''):'<div class="empty"><p>Nessun ristorante trovato</p></div>';
+
+    // Render mappa
+    renderMap(geoData);
+  }catch(e){document.getElementById('listCards').innerHTML='<div class="empty"><p>Errore</p></div>';}
+}
+
+function renderMap(restaurants){
+  const mapEl=document.getElementById('mapWrap');
+  if(!mapEl)return;
+  const withCoords=restaurants.filter(r=>r.lat&&r.lng);
+
+  // Inizializza mappa (centro su Quarto d'Altino)
+  if(!listMap){
+    listMap=L.map('mapWrap',{zoomControl:true,scrollWheelZoom:true}).setView([45.5267,12.3731],12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      attribution:'© <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+      maxZoom:18
+    }).addTo(listMap);
+    listMarkers=L.featureGroup().addTo(listMap);
+  }else{
+    listMarkers.clearLayers();
+  }
+
+  // Marker personalizzato verde
+  const greenIcon=L.divIcon({
+    html:'<div style="background:#6BBF3E;width:32px;height:32px;border-radius:50%;border:3px solid white;box-shadow:0 3px 8px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:15px;font-weight:700;line-height:1">🍝</div>',
+    iconSize:[28,28],iconAnchor:[14,14],popupAnchor:[0,-16],className:''
+  });
+
+  withCoords.forEach(r=>{
+    const score=r.avg_score?`<strong>${r.avg_score}</strong>/5`:'Nessun voto';
+    const marker=L.marker([r.lat,r.lng],{icon:greenIcon})
+      .bindPopup(`<div style="font-family:'DM Sans',sans-serif;min-width:140px">
+        <strong style="font-size:.95rem">${esc(r.name)}</strong><br>
+        <span style="font-size:.8rem;color:#666">📍 ${esc(r.place)}</span><br>
+        <span style="font-size:.82rem">${score} · ${r.review_count} rec.</span><br>
+        <a href="#" onclick="event.preventDefault();openDetail(${r.id})" style="color:#6BBF3E;font-size:.82rem;font-weight:600">Vedi dettaglio →</a>
+      </div>`,{closeButton:false});
+    listMarkers.addLayer(marker);
+  });
+
+  // Posizione utente
+  if(userCoords){
+    const userIcon=L.divIcon({
+      html:'<div style="background:#4285f4;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,.3)"></div>',
+      iconSize:[16,16],iconAnchor:[8,8],className:''
+    });
+    L.marker([userCoords.lat,userCoords.lon],{icon:userIcon}).addTo(listMarkers).bindPopup('Tu sei qui');
+  }
+
+  // Fit bounds
+  if(withCoords.length){
+    setTimeout(()=>{
+      listMap.invalidateSize();
+      if(nearMeMode&&userCoords){
+        // Modalità "vicino a me": centra sulla posizione utente, zoom 12 ≈ 15 km raggio
+        listMap.setView([userCoords.lat,userCoords.lon],12);
+      }else if(listMarkers.getBounds().isValid()){
+        listMap.fitBounds(listMarkers.getBounds(),{padding:[30,30],maxZoom:14});
+      }
+    },100);
+  }
+}
+function setFilter(p,el){disableNearMe();currentFilter=p;document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));el.classList.add('active');renderList();}
+
+function card(r,dist){const tags=(r.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('');
+  const distBadge=dist!=null?`<span class="tag" style="background:rgba(107,191,62,.12);color:var(--green-dark);font-weight:600">📍 ${fmtDist(dist)}</span>`:'';
+  return`<div class="card" onclick="openDetail(${r.id})"><div class="card-body">
+    <div class="card-top"><div><div class="card-name">${esc(r.name)}</div><div class="card-place">📍 ${esc(r.place)}</div></div>
+    ${r.avg_score?`<div class="card-score">${r.avg_score} ${globo(18,true)}</div>`:`<div class="card-score empty">—</div>`}</div>
+    <div class="card-tags">${distBadge}${tags}</div>
+    <div style="margin-top:10px;font-size:.75rem;color:var(--gray);font-family:'Space Mono',monospace">${r.review_count} recension${r.review_count===1?'e':'i'}</div>
+  </div></div>`;}
+
+async function openDetail(id){
+  prevPage=document.querySelector('.page.active')?.id?.replace('page-','')||'list';
+  currentDetailId=id;
+  document.getElementById('detailName').textContent='…';
+  document.getElementById('detailPlace').textContent='';
+  document.getElementById('detailContent').innerHTML='<div class="loading-wrap"><div class="spinner"></div></div>';
+  showPage('detail');
+  try{
+    const r=await api('GET','/restaurants/'+id);
+    document.getElementById('detailName').textContent=r.name;
+    document.getElementById('detailPlace').textContent=`📍 ${r.place}${r.address?', '+r.address:''}`;
+    // Telefono + link mappe
+    const mapsQuery=encodeURIComponent(`${r.name} ${r.address||''} ${r.place}`);
+    const googleUrl=`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
+    const appleUrl=`https://maps.apple.com/?q=${mapsQuery}`;
+    let html=`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">`;
+    if(r.phone)html+=`<a href="tel:${esc(r.phone)}" class="btn btn-outline btn-sm" style="text-decoration:none">📞 ${esc(r.phone)}</a>`;
+    html+=`<a href="${googleUrl}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none">🗺 Google Maps</a>`;
+    html+=`<a href="${appleUrl}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none">🍎 Apple Maps</a>`;
+    html+=`</div>`;
+    if(r.review_count>0){
+      html+=`<div class="score-card">
+        <div class="big-score">${globo(44,true)}<div><div class="big-score-val">${r.avg_score}</div><div class="big-score-label">punteggio globi</div></div></div>
+        <div class="score-title">Media di ${r.review_count} recension${r.review_count===1?'e':'i'}</div>
+        ${srow('Qualità',r.avg_qualita)}${srow('Velocità',r.avg_velocita)}${srow('Prezzo',r.avg_prezzo)}
+        <div class="bonus-row">
+          <div class="bonus-chip ${r.tot_simpatia>0?'on':'off'}">😄 Simpatia${r.tot_simpatia>0?' ('+r.tot_simpatia+'/'+r.review_count+')':''}</div>
+          <div class="bonus-chip ${r.tot_caffe>0?'on':'off'}">☕ Caffè${r.tot_caffe>0?' ('+r.tot_caffe+'/'+r.review_count+')':''}</div>
+        </div></div>`;
+      html+=`<div class="section-title" style="margin-top:24px">Recensioni</div>`;
+      r.reviews.forEach(rv=>{
+        const canDel=currentUser&&(currentUser.role==='admin'||currentUser.id===rv.user_id);
+        html+=`<div class="review-card">
+          <div class="review-meta"><span class="reviewer-name">${esc(rv.reviewer_name)}</span><span class="review-date">${rv.visit_date}</span></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px">${renderGlobi(rv.qualita,16)}<div style="font-size:.6rem;color:var(--gray);font-family:'Space Mono',monospace">Qualità</div></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px">${renderGlobi(rv.velocita,16)}<div style="font-size:.6rem;color:var(--gray);font-family:'Space Mono',monospace">Velocità</div></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px">${renderGlobi(rv.prezzo,16)}<div style="font-size:.6rem;color:var(--gray);font-family:'Space Mono',monospace">Prezzo</div></div>
+            <div style="margin-left:auto;font-family:'Syne',sans-serif;font-weight:800;color:var(--green);font-size:1.1rem">${rv.score} ●</div>
+          </div>
+          ${rv.note?`<div class="review-text">"${esc(rv.note)}"</div>`:''}
+          <div class="bonus-row" style="margin-top:8px">${rv.bonus_simpatia?'<div class="bonus-chip on">😄 Simpatia</div>':''}${rv.bonus_caffe?'<div class="bonus-chip on">☕ Caffè</div>':''}</div>
+          ${canDel?`<button class="btn btn-danger btn-sm" style="margin-top:10px" onclick="deleteReview(${rv.id})">Elimina</button>`:''}
+        </div>`;});
+    }else{html='<div class="empty"><p>Nessuna recensione ancora.<br>Sii il primo!</p></div>';}
+    if(currentUser&&['admin','reviewer'].includes(currentUser.role))html+=`
+      <button class="btn btn-primary" style="width:100%;padding:13px;margin-top:16px" onclick="goReviewThis(${id})">+ Aggiungi recensione</button>
+      <button class="btn btn-outline" style="width:100%;padding:10px;margin-top:8px;font-size:.88rem" onclick="toggleRestEdit()">✏️ Aggiorna informazioni</button>
+      <div id="restEditForm" style="display:none;margin-top:10px;padding:14px;background:#f8f9fa;border:1px solid var(--border);border-radius:12px">
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:.9rem;margin-bottom:12px">Modifica scheda ristorante</div>
+        ${currentUser?.role==='admin'?`
+        <div class="form-group" style="margin-bottom:10px"><label class="form-label">Nome</label>
+          <input class="form-input" id="editName" value="${esc(r.name||'')}" placeholder="Nome ristorante"></div>
+        <div class="form-group" style="margin-bottom:10px"><label class="form-label">Città / Comune</label>
+          <input class="form-input" id="editPlace" value="${esc(r.place||'')}" placeholder="Es. Quarto d'Altino"></div>`
+        :`<input type="hidden" id="editName"><input type="hidden" id="editPlace">`}
+        <div class="form-group" style="margin-bottom:10px"><label class="form-label">Indirizzo</label>
+          <input class="form-input" id="editAddr" value="${esc(r.address||'')}" placeholder="Via Roma 12"></div>
+        <div class="form-group" style="margin-bottom:12px"><label class="form-label">Telefono</label>
+          <input class="form-input" id="editPhone" value="${esc(r.phone||'')}" placeholder="+39 041 123456" type="tel"></div>
+        <button class="btn btn-primary" style="width:100%;padding:10px" onclick="saveRestInfo(${id})">Salva modifiche</button>
+      </div>`;
+    document.getElementById('detailContent').innerHTML=html;
+  }catch{document.getElementById('detailContent').innerHTML='<div class="empty"><p>Errore caricamento</p></div>';}
+}
+function srow(label,val){const v=val||0;const pct=(v/5*100).toFixed(0);return`<div class="score-row"><span class="score-row-label">${label}</span><div class="score-bar-wrap"><div class="score-bar" style="width:${pct}%"></div></div><span class="score-val">${v}</span></div>`;}
+
+async function deleteReview(rid){if(!confirm('Eliminare?'))return;try{await api('DELETE','/reviews/'+rid);toast('Eliminata');openDetail(currentDetailId);}catch(e){toast('Errore: '+e.message);}}
+function toggleRestEdit(){const f=document.getElementById('restEditForm');f.style.display=f.style.display==='none'?'':'none';}
+async function saveRestInfo(id){
+  const addr=document.getElementById('editAddr').value.trim();
+  const phone=document.getElementById('editPhone').value.trim();
+  const name=document.getElementById('editName').value.trim();
+  const place=document.getElementById('editPlace').value.trim();
+  try{
+    await api('PATCH','/restaurants/'+id,{address:addr||null,phone:phone||null});
+    if((name||place)&&currentUser?.role==='admin'){
+      try{await api('PUT','/restaurants/'+id,{name:name||undefined,place:place||undefined});}catch{}
+    }
+    toast('Informazioni aggiornate ✓');openDetail(id);
+  }catch(e){toast('Errore: '+e.message);}
+}
+function goReviewThis(rid){showPage('newReview',rid);}
+
+async function renderNewReview(preselectId){
+  reviewScores={qualita:0,velocita:0,prezzo:0};
+  document.getElementById('rvDate').value=new Date().toISOString().split('T')[0];
+  ['rvNota','rvNewName','rvNewPlace','rvAddress','rvPhone','rvNewLat','rvNewLng','rvSearchPlace','rvManualName','rvManualCity'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('rvSimpatia').checked=false;document.getElementById('rvCaffe').checked=false;
+  setTags([]);
+  document.getElementById('rvManualSection').style.display='none';
+  document.getElementById('rvError').style.display='none';
+  document.getElementById('rvSelectedPlace').style.display='none';
+  document.getElementById('rvSearchResults').style.display='none';
+  try{const rests=await api('GET','/restaurants');const sel=document.getElementById('rvRistorante');
+    sel.innerHTML='<option value="">Seleziona un ristorante esistente...</option>'+rests.map(r=>`<option value="${r.id}">${esc(r.name)} — ${esc(r.place)}</option>`).join('');
+    if(preselectId){sel.value=preselectId;await onRestaurantSelect();}}catch{}
+  ['pickQualita','pickVelocita','pickPrezzo'].forEach(pid=>{
+    const el=document.getElementById(pid);const field=el.dataset.field;el.innerHTML='';
+    for(let i=1;i<=5;i++){const s=document.createElement('span');s.className='glob-pick';s.innerHTML=globo(32,false);s.dataset.val=i;s.onclick=()=>setGlob(field,i);el.appendChild(s);}
+  });
+  initPlaceSearch();
+}
+function setGlob(field,val){reviewScores[field]=val;const pid='pick'+field.charAt(0).toUpperCase()+field.slice(1);
+  document.querySelectorAll(`#${pid} .glob-pick`).forEach((el,i)=>{el.classList.toggle('active',i<val);el.innerHTML=globo(32,i<val);});}
+
+async function submitReview(){
+  const errEl=document.getElementById('rvError');errEl.style.display='none';
+  let rid=parseInt(document.getElementById('rvRistorante').value);
+  const newName=document.getElementById('rvNewName').value.trim()||document.getElementById('rvManualName').value.trim();
+  const newPlace=document.getElementById('rvNewPlace').value.trim()||document.getElementById('rvManualCity').value.trim()||'—';
+  if(!rid&&!newName){errEl.textContent='Seleziona un ristorante esistente, cercane uno nuovo o inseriscilo manualmente';errEl.style.display='block';return;}
+  if(!reviewScores.qualita||!reviewScores.velocita||!reviewScores.prezzo){errEl.textContent='Assegna i globi per tutti i criteri';errEl.style.display='block';return;}
+  const btn=document.getElementById('rvSubmit');btn.disabled=true;btn.textContent='Invio…';
+  const rvAddr=document.getElementById('rvAddress').value.trim();
+  const rvPh=document.getElementById('rvPhone').value.trim();
+  const rvLat=parseFloat(document.getElementById('rvNewLat').value)||null;
+  const rvLng=parseFloat(document.getElementById('rvNewLng').value)||null;
+  try{
+    const rvTags=getSelectedTags();
+    if(!rid&&newName){const rest=await api('POST','/restaurants',{name:newName,place:newPlace,address:rvAddr||null,phone:rvPh||null,lat:rvLat,lng:rvLng,tags:rvTags});rid=rest.id;}
+    else if(rid){try{await api('PATCH','/restaurants/'+rid,{...(rvAddr&&{address:rvAddr}),...(rvPh&&{phone:rvPh}),tags:rvTags});}catch{}}
+    await api('POST','/reviews',{restaurant_id:rid,visit_date:document.getElementById('rvDate').value,qualita:reviewScores.qualita,velocita:reviewScores.velocita,prezzo:reviewScores.prezzo,bonus_simpatia:document.getElementById('rvSimpatia').checked,bonus_caffe:document.getElementById('rvCaffe').checked,note:document.getElementById('rvNota').value.trim()});
+    toast('Recensione pubblicata! 🎉');
+    // Easter egg check
+    const rvName=(newName||document.getElementById('rvRistorante').selectedOptions[0]?.textContent||'').toLowerCase();
+    if(rvName.includes(DOOM_TRIGGER)){setTimeout(()=>launchDoom(),800);}
+    else{openDetail(rid);}
+  }catch(e){errEl.textContent=e.message;errEl.style.display='block';}
+  finally{btn.disabled=false;btn.textContent='Pubblica recensione';}
+}
+
+function showLogin(){document.getElementById('loginPanel').style.display='';document.getElementById('registerPanel').style.display='none';document.getElementById('loginError').style.display='none';}
+function showRegister(){document.getElementById('loginPanel').style.display='none';document.getElementById('registerPanel').style.display='';document.getElementById('regError').style.display='none';}
+function checkInviteParam(){}
+
+async function doLogin(){
+  const errEl=document.getElementById('loginError');errEl.style.display='none';
+  const btn=document.getElementById('loginBtn');btn.disabled=true;btn.textContent='Accesso…';
+  try{const data=await api('POST','/auth/login',{email:document.getElementById('loginEmail').value,password:document.getElementById('loginPwd').value});saveSession(data.token,data.user);updateNav();toast('Bentornato, '+data.user.name+'! 👋');showPage('home');}
+  catch(e){errEl.textContent=e.message;errEl.style.display='block';}
+  finally{btn.disabled=false;btn.textContent='Accedi';}
+}
+function checkRegPwdStrength(){const p=document.getElementById('regPwd').value;const ok=p.length>=8&&/[A-Z]/.test(p)&&/[a-z]/.test(p)&&/[0-9]/.test(p)&&/[^A-Za-z0-9]/.test(p);document.getElementById('regPwdRules').style.color=p.length===0?'var(--gray)':ok?'var(--green)':'#e85d04';}
+async function doRegister(){
+  const errEl=document.getElementById('regError');errEl.style.display='none';
+  const btn=document.getElementById('regBtn');btn.disabled=true;btn.textContent='Registrazione…';
+  try{const data=await api('POST','/auth/register',{name:document.getElementById('regName').value,email:document.getElementById('regEmail').value,password:document.getElementById('regPwd').value});saveSession(data.token,data.user);updateNav();toast('Benvenuto, '+data.user.name+'! 🎉');showPage('home');}
+  catch(e){errEl.textContent=e.message;errEl.style.display='block';}
+  finally{btn.disabled=false;btn.textContent='Crea account';}
+}
+function logout(){clearSession();updateNav();toast('Logout effettuato');showPage('home');}
+function updateNav(){const li=!!currentUser;document.getElementById('navLogin').style.display=li?'none':'';document.getElementById('navLogout').style.display=li?'':'none';document.getElementById('navList').style.display=li?'':'none';document.getElementById('navUser').textContent=li?currentUser.name:'';document.getElementById('navReview').style.display=li&&['admin','reviewer'].includes(currentUser.role)?'':'none';document.getElementById('navAdmin').style.display=li&&currentUser.role==='admin'?'':'none';document.getElementById('navPassword').style.display=li?'':'none';}
+function checkPwdStrength(){
+  const p=document.getElementById('pwdNew').value;
+  const rules=[{id:'pr1',ok:p.length>=8},{id:'pr2',ok:/[A-Z]/.test(p)},{id:'pr3',ok:/[a-z]/.test(p)},{id:'pr4',ok:/[0-9]/.test(p)},{id:'pr5',ok:/[^A-Za-z0-9]/.test(p)}];
+  const labels=['Minimo 8 caratteri','Una lettera maiuscola','Una lettera minuscola','Un numero','Un carattere speciale (!@#$%...)'];
+  rules.forEach((r,i)=>{const el=document.getElementById(r.id);el.textContent=(r.ok?'✓ ':'✗ ')+labels[i];el.style.color=r.ok?'var(--green)':'var(--gray)';});
+}
+async function doChangePassword(){
+  const errEl=document.getElementById('pwdError');const sucEl=document.getElementById('pwdSuccess');errEl.style.display='none';sucEl.style.display='none';
+  const cur=document.getElementById('pwdCurrent').value;const nw=document.getElementById('pwdNew').value;const conf=document.getElementById('pwdConfirm').value;
+  if(!cur||!nw||!conf){errEl.textContent='Compila tutti i campi';errEl.style.display='block';return;}
+  if(nw!==conf){errEl.textContent='Le password non coincidono';errEl.style.display='block';return;}
+  const btn=document.getElementById('pwdBtn');btn.disabled=true;btn.textContent='Aggiornamento…';
+  try{await api('POST','/auth/change-password',{current_password:cur,new_password:nw});sucEl.textContent='Password aggiornata con successo ✓';sucEl.style.display='block';document.getElementById('pwdCurrent').value='';document.getElementById('pwdNew').value='';document.getElementById('pwdConfirm').value='';checkPwdStrength();}
+  catch(e){errEl.textContent=e.message;errEl.style.display='block';}
+  finally{btn.disabled=false;btn.textContent='Aggiorna password';}
+}
+
+function adminTab(tab,el){document.querySelectorAll('.admin-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');currentAdminTab=tab;renderAdmin();}
+async function renderAdmin(){
+  if(!currentUser||currentUser.role!=='admin')return;
+  const el=document.getElementById('adminContent');el.innerHTML='<div class="loading-wrap"><div class="spinner"></div></div>';
+  try{
+    if(currentAdminTab==='users'){
+      const users=await api('GET','/users');
+      const pending=users.filter(u=>u.role_request==='pending');
+      const pendingHtml=pending.length?`<div style="margin-bottom:20px;background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:14px"><div style="font-family:'Syne',sans-serif;font-weight:700;margin-bottom:10px">🔔 Richieste in attesa (${pending.length})</div>${pending.map(u=>`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;flex-wrap:wrap"><span style="flex:1;min-width:120px"><strong>${esc(u.name)}</strong> (${esc(u.email)})</span><button class="btn btn-primary btn-sm" onclick="approveReviewer(${u.id})">✓ Approva</button><button class="btn btn-sm btn-danger" onclick="denyReviewer(${u.id})">✕ Rifiuta</button></div>`).join('')}</div>`:'';
+      el.innerHTML=pendingHtml+`<div style="margin-bottom:20px"><div style="font-family:'Syne',sans-serif;font-weight:700;margin-bottom:10px">Crea utente</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input class="form-input" id="adUN" placeholder="Nome" style="flex:2;min-width:120px">
+          <input class="form-input" id="adUE" placeholder="Email" style="flex:2;min-width:160px">
+          <input class="form-input" type="password" id="adUP" placeholder="Password" style="flex:1;min-width:120px">
+          <select class="form-select" id="adUR" style="flex:1;min-width:100px"><option value="user">user</option><option value="reviewer">reviewer</option><option value="admin">admin</option></select>
+          <button class="btn btn-primary" onclick="adminCreateUser()">Crea</button>
+        </div></div>
+        <div style="overflow-x:auto"><table class="admin-table"><tr><th>Nome</th><th>Email</th><th>Ruolo</th><th>Stato</th><th>Ultimo accesso</th><th>Azioni</th></tr>
+        ${users.map(u=>`<tr><td>${esc(u.name)}</td><td style="font-size:.8rem">${esc(u.email)}</td>
+          <td><span class="role-badge role-${u.role}">${u.role}</span></td>
+          <td><span style="color:${u.active?'var(--green)':'#ccc'}">${u.active?'Attivo':'Disattivo'}</span></td>
+          <td style="font-size:.72rem;color:var(--gray)">${u.last_login?u.last_login.slice(0,16):'—'}</td>
+          <td><div style="display:flex;gap:6px;flex-wrap:wrap">
+            <select onchange="adminChangeRole(${u.id},this.value)" style="font-size:.75rem;padding:3px;border:1px solid #ddd;border-radius:4px">${['admin','reviewer','user'].map(r=>`<option value="${r}"${u.role===r?' selected':''}>${r}</option>`).join('')}</select>
+            <button class="btn btn-sm ${u.active?'btn-danger':'btn-outline'}" onclick="adminToggleActive(${u.id},${u.active?0:1})">${u.active?'Disattiva':'Attiva'}</button>
+          </div></td></tr>`).join('')}
+        </table></div>`;
+    }else if(currentAdminTab==='reviews'){
+      const reviews=await api('GET','/reviews');
+      el.innerHTML=`<div style="overflow-x:auto"><table class="admin-table"><tr><th>Data</th><th>Ristorante</th><th>Recensore</th><th>Score</th><th></th></tr>
+        ${reviews.map(r=>`<tr><td>${r.visit_date}</td><td>${esc(r.restaurant_name)}</td><td>${esc(r.reviewer_name)}</td>
+          <td style="font-family:'Syne',sans-serif;font-weight:700;color:var(--green)">${r.score}</td>
+          <td><button class="btn btn-danger btn-sm" onclick="adminDeleteReview(${r.id})">Elimina</button></td></tr>`).join('')}
+        </table></div>`;
+    }else{
+      const rests=await api('GET','/restaurants');
+      el.innerHTML=`<div style="margin-bottom:20px"><div style="font-family:'Syne',sans-serif;font-weight:700;margin-bottom:10px">Aggiungi ristorante</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input class="form-input" id="adRN" placeholder="Nome" style="flex:2;min-width:140px">
+          <input class="form-input" id="adRP" placeholder="Luogo" style="flex:1;min-width:120px">
+          <input class="form-input" id="adRPh" placeholder="Telefono" type="tel" style="flex:1;min-width:120px">
+          <button class="btn btn-primary" onclick="adminAddRest()">Aggiungi</button>
+        </div></div>
+        <div style="overflow-x:auto"><table class="admin-table"><tr><th>Nome</th><th>Luogo</th><th>Telefono</th><th>Recensioni</th><th></th></tr>
+        ${rests.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.place)}</td><td style="font-size:.8rem">${r.phone?`<a href="tel:${esc(r.phone)}">${esc(r.phone)}</a>`:'—'}</td><td>${r.review_count}</td>
+          <td><button class="btn btn-danger btn-sm" onclick="adminDeleteRest(${r.id})">Rimuovi</button></td></tr>`).join('')}
+        </table></div>`;
+    }
+  }catch(e){el.innerHTML=`<div class="empty"><p>Errore: ${e.message}</p></div>`;}
+}
+
+async function adminChangeRole(uid,role){try{await api('PUT','/users/'+uid+'/role',{role});toast('Ruolo aggiornato');renderAdmin();}catch(e){toast('Errore: '+e.message);}}
+async function approveReviewer(uid){try{await api('PUT','/users/'+uid+'/approve-reviewer');toast('Utente promosso a reviewer ✓');renderAdmin();}catch(e){toast('Errore: '+e.message);}}
+async function denyReviewer(uid){try{await api('PUT','/users/'+uid+'/deny-reviewer');toast('Richiesta rifiutata');renderAdmin();}catch(e){toast('Errore: '+e.message);}}
+async function adminToggleActive(uid,active){try{await api('PUT','/users/'+uid+'/active',{active});renderAdmin();}catch(e){toast('Errore: '+e.message);}}
+async function adminCreateUser(){try{await api('POST','/users',{name:document.getElementById('adUN').value,email:document.getElementById('adUE').value,password:document.getElementById('adUP').value,role:document.getElementById('adUR').value});toast('Utente creato!');renderAdmin();}catch(e){toast('Errore: '+e.message);}}
+async function adminDeleteReview(rid){if(!confirm('Eliminare?'))return;try{await api('DELETE','/reviews/'+rid);renderAdmin();toast('Eliminata');}catch(e){toast('Errore: '+e.message);}}
+async function adminDeleteRest(rid){if(!confirm('Rimuovere?'))return;try{await api('DELETE','/restaurants/'+rid);renderAdmin();toast('Rimosso');}catch(e){toast('Errore: '+e.message);}}
+async function adminAddRest(){const n=document.getElementById('adRN').value.trim(),p=document.getElementById('adRP').value.trim(),ph=document.getElementById('adRPh').value.trim();if(!n||!p)return;try{await api('POST','/restaurants',{name:n,place:p,phone:ph||null,tags:['menu fisso']});renderAdmin();toast('Aggiunto!');}catch(e){toast('Errore: '+e.message);}}
+
+// ══════════════════════════════════════════════════════════
+// 🎮 EASTER EGG: byte4DOOM — mini FPS (DDA raycaster)
+// ══════════════════════════════════════════════════════════
+const DOOM_TRIGGER='piero';
+
+function launchDoom(){
+  if(document.getElementById('doomOverlay'))return;
+  // Blocca pinch-to-zoom su mobile per tutta la durata del gioco
+  const vpMeta=document.querySelector('meta[name="viewport"]');
+  const origVP=vpMeta?vpMeta.content:'';
+  if(vpMeta)vpMeta.content='width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no';
+  const W=640,H=400,FOV=Math.PI/3;
+  // Map: more open layout with corridors connecting all areas
+  const MAP=[
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,2,2,0,0,0,0,0,0,3,3,0,0,1],
+    [1,0,0,2,0,0,0,0,0,0,0,0,3,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,4,0,4,0,4,0,4,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,4,0,4,0,4,0,4,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,3,0,0,0,0,0,0,0,0,2,0,0,1],
+    [1,0,0,3,3,0,0,0,0,0,0,2,2,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  ];
+  const MW=16,MH=16;
+  const WC={1:[[100,100,110],[70,70,80]],2:[[60,120,60],[40,90,40]],3:[[50,80,140],[35,60,110]],4:[[140,100,50],[110,75,35]]};
+  let px=8,py=2,pa=Math.PI/2,hp=100,ammo=50,kills=0,shooting=0,gameOver=0,won=0,started=0;
+  const startTime=Date.now();let endTime=0,deathTime=0;
+  const enemies=[
+    {x:4.5,y:4.5,hp:3,maxHp:3,alive:1,type:'imp',atk:4,spd:1.5},
+    {x:11.5,y:4.5,hp:3,maxHp:3,alive:1,type:'imp',atk:4,spd:1.5},
+    {x:7.5,y:7.5,hp:6,maxHp:6,alive:1,type:'demon',atk:8,spd:1.2},
+    {x:8.5,y:8.5,hp:6,maxHp:6,alive:1,type:'demon',atk:8,spd:1.2},
+    {x:4.5,y:12.5,hp:3,maxHp:3,alive:1,type:'imp',atk:4,spd:1.5},
+    {x:11.5,y:12.5,hp:3,maxHp:3,alive:1,type:'imp',atk:4,spd:1.5},
+    {x:8,y:14,hp:10,maxHp:10,alive:1,type:'baron',atk:12,spd:0.8},
+  ];
+  const totalE=enemies.length;
+  const keys={};let lastShot=0,dmgFlash=0;
+  let mJoy=null,mLook=null,mLookBase={x:0,y:0},joyBaseX=0,joyBaseY=0,joyDx=0,joyDy=0;
+  const isMobile='ontouchstart' in window||navigator.maxTouchPoints>0;
+
+  // DOM
+  const ov=document.createElement('div');ov.id='doomOverlay';
+  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;touch-action:none';
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  if(isMobile){
+    cv.style.cssText='image-rendering:pixelated;width:100%;height:100%;position:absolute;top:0;left:0;background:#000;touch-action:none';
+    const fireBtn=document.createElement('div');
+    fireBtn.style.cssText='position:absolute;bottom:20px;right:20px;width:72px;height:72px;border-radius:50%;background:rgba(200,40,40,0.75);border:3px solid #f55;display:flex;align-items:center;justify-content:center;font-size:28px;z-index:2;touch-action:none;user-select:none;-webkit-user-select:none';
+    fireBtn.textContent='🔫';
+    fireBtn.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();if(!started){started=1;}else if(gameOver){if(Date.now()-deathTime<2000)return;restart();}else{shoot();}},{passive:false});
+    const exitBtn=document.createElement('div');
+    exitBtn.style.cssText='position:absolute;top:10px;right:10px;width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,0.65);border:2px solid #666;display:flex;align-items:center;justify-content:center;font-size:17px;color:#ccc;z-index:2;touch-action:none;user-select:none;-webkit-user-select:none';
+    exitBtn.textContent='✕';
+    exitBtn.addEventListener('touchstart',e=>{e.preventDefault();cleanup();},{passive:false});
+    ov.appendChild(cv);ov.appendChild(fireBtn);ov.appendChild(exitBtn);
+  }else{
+    cv.style.cssText='image-rendering:pixelated;width:100%;max-width:960px;max-height:75vh;background:#000;cursor:crosshair';
+    const info=document.createElement('div');info.style.cssText='color:#aaa;font-family:monospace;font-size:12px;padding:6px;text-align:center';
+    info.textContent='Clicca per iniziare — WASD: muovi | Mouse: guarda | Click: spara | ESC: esci';
+    ov.appendChild(cv);ov.appendChild(info);
+  }
+  document.body.appendChild(ov);
+  const ctx=cv.getContext('2d');
+
+  // Input
+  const onKey=e=>{
+    keys[e.key.toLowerCase()]=e.type==='keydown';
+    if(e.key==='Escape')cleanup();
+    // R to restart when game over
+    if(e.key.toLowerCase()==='r'&&gameOver){if(Date.now()-deathTime<2000)return;restart();}
+  };
+  const onMouse=e=>{if(document.pointerLockElement)pa+=e.movementX*0.002;};
+  const onClick=()=>{if(!document.pointerLockElement){cv.requestPointerLock();started=1;return;}if(started)shoot();};
+  document.addEventListener('keydown',onKey);document.addEventListener('keyup',onKey);
+  document.addEventListener('mousemove',onMouse);cv.addEventListener('click',onClick);
+  if(isMobile){
+    const onTS=e=>{
+      e.preventDefault();
+      if(!started){started=1;return;}
+      for(const t of e.changedTouches){
+        const rx=t.clientX/window.innerWidth;
+        if(rx<0.5&&mJoy===null){mJoy=t.identifier;joyBaseX=t.clientX;joyBaseY=t.clientY;joyDx=0;joyDy=0;}
+        else if(rx>=0.5&&mLook===null){mLook=t.identifier;mLookBase={x:t.clientX,y:t.clientY};}
+      }
+    };
+    const onTM=e=>{
+      e.preventDefault();
+      for(const t of e.changedTouches){
+        if(t.identifier===mJoy){
+          joyDx=t.clientX-joyBaseX;joyDy=t.clientY-joyBaseY;
+          const dead=15;
+          keys['w']=joyDy<-dead;keys['s']=joyDy>dead;
+          keys['a']=joyDx<-dead;keys['d']=joyDx>dead;
+        }else if(t.identifier===mLook){
+          pa+=(t.clientX-mLookBase.x)*0.007;
+          mLookBase={x:t.clientX,y:t.clientY};
+        }
+      }
+    };
+    const onTE=e=>{
+      for(const t of e.changedTouches){
+        if(t.identifier===mJoy){mJoy=null;joyDx=0;joyDy=0;keys['w']=false;keys['s']=false;keys['a']=false;keys['d']=false;}
+        else if(t.identifier===mLook){mLook=null;}
+      }
+    };
+    cv.addEventListener('touchstart',onTS,{passive:false});
+    cv.addEventListener('touchmove',onTM,{passive:false});
+    cv.addEventListener('touchend',onTE,{passive:false});
+    cv.addEventListener('touchcancel',onTE,{passive:false});
+    cv._th={onTS,onTM,onTE};
+  }
+
+  function cleanup(){
+    document.removeEventListener('keydown',onKey);document.removeEventListener('keyup',onKey);
+    document.removeEventListener('mousemove',onMouse);cv.removeEventListener('click',onClick);
+    if(cv._th){cv.removeEventListener('touchstart',cv._th.onTS);cv.removeEventListener('touchmove',cv._th.onTM);cv.removeEventListener('touchend',cv._th.onTE);cv.removeEventListener('touchcancel',cv._th.onTE);}
+    if(document.pointerLockElement)document.exitPointerLock();
+    if(vpMeta)vpMeta.content=origVP; // Ripristina zoom normale
+    ov.remove();gameOver=1;
+  }
+
+  function restart(){
+    px=8;py=2;pa=Math.PI/2;hp=100;ammo=50;kills=0;shooting=0;gameOver=0;won=0;started=1;
+    enemies.forEach((e,i)=>{
+      const orig=[
+        {x:4.5,y:4.5,hp:3},{x:11.5,y:4.5,hp:3},{x:7.5,y:7.5,hp:6},{x:8.5,y:8.5,hp:6},
+        {x:4.5,y:12.5,hp:3},{x:11.5,y:12.5,hp:3},{x:8,y:14,hp:10}
+      ];
+      e.x=orig[i].x;e.y=orig[i].y;e.hp=e.maxHp;e.alive=1;
+    });
+  }
+
+  function shoot(){
+    if(ammo<=0||shooting>3||gameOver)return;
+    const now=Date.now();if(now-lastShot<250)return;lastShot=now;shooting=8;ammo--;
+    let bestD=Infinity,bestE=null;
+    enemies.forEach(e=>{if(!e.alive)return;
+      const dx=e.x-px,dy=e.y-py,d=Math.sqrt(dx*dx+dy*dy);
+      let a=Math.atan2(dy,dx)-pa;while(a>Math.PI)a-=2*Math.PI;while(a<-Math.PI)a+=2*Math.PI;
+      if(Math.abs(a)<0.15&&d<bestD){bestD=d;bestE=e;}
+    });
+    if(bestE&&bestD<14){bestE.hp-=2;if(bestE.hp<=0){bestE.alive=0;kills++;if(kills>=totalE){won=1;gameOver=1;endTime=Date.now();deathTime=Date.now();}}}
+  }
+
+  // DDA Raycaster
+  function castRay(angle){
+    const dx=Math.cos(angle),dy=Math.sin(angle);
+    let mapX=Math.floor(px),mapY=Math.floor(py);
+    const ddx=Math.abs(1/dx),ddy=Math.abs(1/dy);
+    let stepX,stepY,sdx,sdy;
+    if(dx<0){stepX=-1;sdx=(px-mapX)*ddx;}else{stepX=1;sdx=(mapX+1-px)*ddx;}
+    if(dy<0){stepY=-1;sdy=(py-mapY)*ddy;}else{stepY=1;sdy=(mapY+1-py)*ddy;}
+    let side=0,wall=0;
+    for(let i=0;i<64;i++){
+      if(sdx<sdy){sdx+=ddx;mapX+=stepX;side=0;}else{sdy+=ddy;mapY+=stepY;side=1;}
+      if(mapX<0||mapY<0||mapX>=MW||mapY>=MH){wall=1;break;}
+      if(MAP[mapY][mapX]>0){wall=MAP[mapY][mapX];break;}
+    }
+    const dist=side===0?(mapX-px+(1-stepX)/2)/dx:(mapY-py+(1-stepY)/2)/dy;
+    return{dist:Math.abs(dist),wall,side};
+  }
+
+  function movePlayer(dt){
+    if(gameOver||!started)return;
+    const sp=3.5*dt;let mx=0,my=0;
+    if(keys['w']||keys['arrowup']){mx+=Math.cos(pa)*sp;my+=Math.sin(pa)*sp;}
+    if(keys['s']||keys['arrowdown']){mx-=Math.cos(pa)*sp;my-=Math.sin(pa)*sp;}
+    if(keys['a']){mx+=Math.cos(pa-Math.PI/2)*sp;my+=Math.sin(pa-Math.PI/2)*sp;}
+    if(keys['d']){mx+=Math.cos(pa+Math.PI/2)*sp;my+=Math.sin(pa+Math.PI/2)*sp;}
+    if(keys['arrowleft'])pa-=2.5*dt;
+    if(keys['arrowright'])pa+=2.5*dt;
+    const r=0.2;
+    if(MAP[Math.floor(py)][Math.floor(px+mx+r*Math.sign(mx))]===0)px+=mx;
+    if(MAP[Math.floor(py+my+r*Math.sign(my))][Math.floor(px)]===0)py+=my;
+  }
+
+  // Improved enemy AI with wall-sliding
+  function moveEnemies(dt){
+    if(gameOver||!started)return;
+    enemies.forEach(e=>{if(!e.alive)return;
+      const dx=px-e.x,dy=py-e.y,d=Math.sqrt(dx*dx+dy*dy);
+      if(d>0.6){
+        const s=e.spd*dt;
+        const nx=dx/d*s,ny=dy/d*s;
+        const cr=0.25; // collision radius
+        const canX=MAP[Math.floor(e.y)][Math.floor(e.x+nx+cr*Math.sign(nx))]===0;
+        const canY=MAP[Math.floor(e.y+ny+cr*Math.sign(ny))][Math.floor(e.x)]===0;
+        if(canX&&canY){e.x+=nx;e.y+=ny;}
+        else if(canX){e.x+=nx;} // wall-slide X
+        else if(canY){e.y+=ny;} // wall-slide Y
+        else{
+          // Try perpendicular directions to get unstuck
+          const perp1x=-dy/d*s,perp1y=dx/d*s;
+          const perp2x=dy/d*s,perp2y=-dx/d*s;
+          // Pick the perpendicular that gets closer to player
+          const d1=Math.hypot(px-(e.x+perp1x),py-(e.y+perp1y));
+          const d2=Math.hypot(px-(e.x+perp2x),py-(e.y+perp2y));
+          const [bx,by]=d1<d2?[perp1x,perp1y]:[perp2x,perp2y];
+          if(MAP[Math.floor(e.y)][Math.floor(e.x+bx+cr*Math.sign(bx))]===0)e.x+=bx;
+          if(MAP[Math.floor(e.y+by+cr*Math.sign(by))][Math.floor(e.x)]===0)e.y+=by;
+        }
+      }
+      // Enemy attacks when close
+      if(d<0.9&&Math.random()<1.5*dt){hp-=e.atk;dmgFlash=6;if(hp<=0){hp=0;gameOver=1;endTime=Date.now();deathTime=Date.now();}}
+    });
+  }
+
+  // Enemy projectile system (baron shoots fireballs)
+  const fireballs=[];
+  function updateFireballs(dt){
+    if(gameOver||!started)return;
+    // Baron shoots fireballs periodically
+    enemies.forEach(e=>{
+      if(!e.alive||e.type!=='baron')return;
+      const d=Math.hypot(px-e.x,py-e.y);
+      if(d<10&&d>1.5&&Math.random()<0.4*dt){
+        const ang=Math.atan2(py-e.y,px-e.x);
+        fireballs.push({x:e.x,y:e.y,dx:Math.cos(ang)*4,dy:Math.sin(ang)*4,life:3});
+      }
+    });
+    for(let i=fireballs.length-1;i>=0;i--){
+      const f=fireballs[i];
+      f.x+=f.dx*dt;f.y+=f.dy*dt;f.life-=dt;
+      if(f.life<=0||MAP[Math.floor(f.y)][Math.floor(f.x)]>0){fireballs.splice(i,1);continue;}
+      if(Math.hypot(f.x-px,f.y-py)<0.4){hp-=6;dmgFlash=8;fireballs.splice(i,1);if(hp<=0){hp=0;gameOver=1;endTime=Date.now();deathTime=Date.now();}}
+    }
+  }
+
+  function render(){
+    // Sky gradient
+    const skyG=ctx.createLinearGradient(0,0,0,H/2);
+    skyG.addColorStop(0,'#0a0a1a');skyG.addColorStop(1,'#1a1020');
+    ctx.fillStyle=skyG;ctx.fillRect(0,0,W,H/2);
+    // Floor gradient
+    const flG=ctx.createLinearGradient(0,H/2,0,H);
+    flG.addColorStop(0,'#2a2a2a');flG.addColorStop(1,'#444');
+    ctx.fillStyle=flG;ctx.fillRect(0,H/2,W,H/2);
+
+    // Walls
+    const zbuf=new Float32Array(W);
+    for(let x=0;x<W;x++){
+      const rayA=pa-FOV/2+FOV*(x/W);
+      const hit=castRay(rayA);
+      const perp=hit.dist*Math.cos(rayA-pa);
+      zbuf[x]=perp;
+      if(perp<=0)continue;
+      const lh=Math.min(H*2,H/perp);
+      const y0=(H-lh)/2;
+      const wc=WC[hit.wall]||WC[1];
+      const c=wc[hit.side];
+      const shade=Math.max(0.15,Math.min(1,1.5/perp));
+      ctx.fillStyle=`rgb(${c[0]*shade|0},${c[1]*shade|0},${c[2]*shade|0})`;
+      ctx.fillRect(x,y0,1,lh);
+    }
+
+    // Fireballs (render before enemies)
+    fireballs.forEach(f=>{
+      const fdx=f.x-px,fdy=f.y-py,fd=Math.hypot(fdx,fdy);
+      let fa=Math.atan2(fdy,fdx)-pa;while(fa>Math.PI)fa-=2*Math.PI;while(fa<-Math.PI)fa+=2*Math.PI;
+      if(Math.abs(fa)>FOV/2)return;
+      const fsx=W/2+(fa/FOV)*W;
+      const fperp=fd*Math.cos(fa);if(fperp<=0.1)return;
+      const fsz=Math.max(4,H/fperp*0.2);
+      if(zbuf[Math.floor(fsx)]&&zbuf[Math.floor(fsx)]<fperp)return;
+      ctx.fillStyle='#f80';ctx.beginPath();ctx.arc(fsx,H/2,fsz,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#ff0';ctx.beginPath();ctx.arc(fsx,H/2,fsz*0.5,0,Math.PI*2);ctx.fill();
+    });
+
+    // Enemies
+    const sorted=[...enemies].filter(e=>e.alive).map(e=>{
+      const dx=e.x-px,dy=e.y-py;return{...e,dist:Math.sqrt(dx*dx+dy*dy),ang:Math.atan2(dy,dx)};
+    }).sort((a,b)=>b.dist-a.dist);
+    sorted.forEach(e=>{
+      let a=e.ang-pa;while(a>Math.PI)a-=2*Math.PI;while(a<-Math.PI)a+=2*Math.PI;
+      if(Math.abs(a)>FOV/2+0.1)return;
+      const sx=W/2+(a/FOV)*W;
+      const perp=e.dist*Math.cos(a);if(perp<=0.1)return;
+      const sz=H/perp*0.8;
+      const sy=H/2-sz/2;
+      const hw=sz/3;let blocked=0,total=0;
+      for(let cx=Math.max(0,Math.floor(sx-hw));cx<Math.min(W,Math.ceil(sx+hw));cx++){total++;if(zbuf[cx]<perp)blocked++;}
+      if(total>0&&blocked/total>0.7)return;
+
+      const shade=Math.max(0.3,Math.min(1,2/perp));
+      const colors={imp:[220,130,50],demon:[180,60,30],baron:[200,20,20]};
+      const bc=colors[e.type]||colors.imp;
+      const rc=bc.map(v=>v*shade|0);
+
+      // Shadow
+      ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(sx,H/2+sz/2,sz/3,sz/8,0,0,Math.PI*2);ctx.fill();
+      // Body
+      ctx.fillStyle=`rgb(${rc[0]},${rc[1]},${rc[2]})`;
+      ctx.fillRect(sx-sz/4,sy+sz*0.25,sz/2,sz*0.55);
+      // Head
+      ctx.beginPath();ctx.arc(sx,sy+sz*0.2,sz/5,0,Math.PI*2);ctx.fill();
+      // Arms
+      ctx.fillRect(sx-sz/3,sy+sz*0.3,sz/8,sz*0.3);
+      ctx.fillRect(sx+sz/3-sz/8,sy+sz*0.3,sz/8,sz*0.3);
+      // Eyes
+      const es=Math.max(2,sz/14);
+      ctx.fillStyle=e.type==='baron'?'#ff0':'#ff8';
+      ctx.fillRect(sx-sz/8,sy+sz*0.15,es,es);ctx.fillRect(sx+sz/8-es,sy+sz*0.15,es,es);
+      // Horns for baron
+      if(e.type==='baron'){ctx.fillStyle=`rgb(${rc[0]},${rc[1]},${rc[2]})`;
+        ctx.beginPath();ctx.moveTo(sx-sz/5,sy+sz*0.1);ctx.lineTo(sx-sz/4,sy-sz*0.05);ctx.lineTo(sx-sz/8,sy+sz*0.1);ctx.fill();
+        ctx.beginPath();ctx.moveTo(sx+sz/5,sy+sz*0.1);ctx.lineTo(sx+sz/4,sy-sz*0.05);ctx.lineTo(sx+sz/8,sy+sz*0.1);ctx.fill();
+      }
+      // HP bar
+      if(e.hp<e.maxHp){
+        ctx.fillStyle='#400';ctx.fillRect(sx-sz/4,sy-6,sz/2,4);
+        ctx.fillStyle='#f00';ctx.fillRect(sx-sz/4,sy-6,sz/2*(e.hp/e.maxHp),4);
+      }
+    });
+
+    // Weapon
+    const wOff=shooting>5?-12:shooting>3?-6:0;
+    const bob=started&&!gameOver?Math.sin(Date.now()/150)*2:0;
+    const wx=W/2-30,wy=H-100+wOff+bob;
+    ctx.fillStyle='#666';ctx.fillRect(wx+12,wy-20,8,60);
+    ctx.fillStyle='#555';ctx.fillRect(wx+8,wy+15,16,8);
+    ctx.fillStyle='#777';ctx.fillRect(wx+4,wy+23,24,30);
+    ctx.fillStyle='#888';ctx.fillRect(wx,wy,32,20);
+    if(shooting>5){
+      ctx.fillStyle='#ff0';ctx.beginPath();ctx.arc(wx+16,wy-28,14,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#fa0';ctx.beginPath();ctx.arc(wx+16,wy-22,9,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#f00';ctx.beginPath();ctx.arc(wx+16,wy-18,5,0,Math.PI*2);ctx.fill();
+    }
+    if(shooting>0)shooting--;
+
+    // Damage flash
+    if(dmgFlash>0){ctx.fillStyle=`rgba(255,0,0,${dmgFlash*0.06})`;ctx.fillRect(0,0,W,H);dmgFlash--;}
+
+    // Crosshair
+    ctx.strokeStyle='rgba(0,255,0,0.8)';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(W/2-10,H/2);ctx.lineTo(W/2-3,H/2);ctx.moveTo(W/2+3,H/2);ctx.lineTo(W/2+10,H/2);
+    ctx.moveTo(W/2,H/2-10);ctx.lineTo(W/2,H/2-3);ctx.moveTo(W/2,H/2+3);ctx.lineTo(W/2,H/2+10);ctx.stroke();
+    ctx.fillStyle='rgba(0,255,0,0.6)';ctx.fillRect(W/2-1,H/2-1,2,2);
+
+    // HUD
+    ctx.fillStyle='rgba(30,30,30,0.85)';ctx.fillRect(0,H-32,W,32);
+    ctx.font='bold 16px monospace';
+    ctx.fillStyle=hp>60?'#0f0':hp>30?'#ff0':'#f00';ctx.fillText('HP '+hp,16,H-10);
+    ctx.fillStyle='#fa0';ctx.fillText('AMMO '+ammo,130,H-10);
+    ctx.fillStyle='#fff';ctx.fillText('KILLS '+kills+'/'+totalE,280,H-10);
+    // Enemy compass indicator
+    const aliveE=enemies.filter(e=>e.alive);
+    if(aliveE.length>0&&started&&!gameOver){
+      const nearest=aliveE.reduce((a,b)=>Math.hypot(a.x-px,a.y-py)<Math.hypot(b.x-px,b.y-py)?a:b);
+      const nd=Math.hypot(nearest.x-px,nearest.y-py);
+      ctx.fillStyle=nd<3?'#f44':nd<6?'#fa0':'#888';
+      ctx.fillText(nd<3?'!! VICINO !!':nd<6?'> NEMICO <':'~ nemico ~',400,H-10);
+    }
+    ctx.fillStyle='#f33';ctx.font='bold 14px monospace';ctx.fillText('byte4DOOM',W-110,H-10);
+
+    // Minimap (bigger for better visibility)
+    const ms=4,mmx=W-72,mmy=4;
+    ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(mmx-2,mmy-2,MW*ms+4,MH*ms+4);
+    for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){ctx.fillStyle=MAP[y][x]?'#666':'#1a1a1a';ctx.fillRect(mmx+x*ms,mmy+y*ms,ms-0.5,ms-0.5);}
+    // Player on minimap with direction indicator
+    ctx.fillStyle='#0f0';ctx.fillRect(mmx+px*ms-1.5,mmy+py*ms-1.5,3,3);
+    ctx.strokeStyle='#0f0';ctx.lineWidth=1;ctx.beginPath();
+    ctx.moveTo(mmx+px*ms,mmy+py*ms);ctx.lineTo(mmx+px*ms+Math.cos(pa)*6,mmy+py*ms+Math.sin(pa)*6);ctx.stroke();
+    // Enemies on minimap (blinking red dots)
+    const blink=Math.sin(Date.now()/200)>0;
+    enemies.forEach(e=>{if(e.alive){
+      ctx.fillStyle=e.type==='baron'?'#f0f':'#f00';
+      const dotSz=e.type==='baron'?3:2;
+      if(blink||e.type==='baron')ctx.fillRect(mmx+e.x*ms-dotSz/2,mmy+e.y*ms-dotSz/2,dotSz,dotSz);
+    }});
+    // Fireballs on minimap
+    ctx.fillStyle='#f80';fireballs.forEach(f=>{ctx.fillRect(mmx+f.x*ms-1,mmy+f.y*ms-1,2,2);});
+
+    // Mobile joystick visual
+    if(isMobile&&started&&!gameOver){
+      const jx=62,jy=H-62,jr=42;
+      ctx.fillStyle='rgba(255,255,255,0.10)';ctx.beginPath();ctx.arc(jx,jy,jr,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,0.25)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(jx,jy,jr,0,Math.PI*2);ctx.stroke();
+      if(mJoy!==null){
+        const dx=Math.max(-jr,Math.min(jr,joyDx*0.65));
+        const dy=Math.max(-jr,Math.min(jr,joyDy*0.65));
+        ctx.fillStyle='rgba(255,255,255,0.42)';ctx.beginPath();ctx.arc(jx+dx,jy+dy,jr*0.38,0,Math.PI*2);ctx.fill();
+      }
+    }
+
+    // Title screen
+    if(!started){
+      ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,H);
+      ctx.textAlign='center';
+      ctx.fillStyle='#f33';ctx.font='bold 52px monospace';ctx.fillText('byte4DOOM',W/2,H/2-50);
+      ctx.fillStyle='#fa0';ctx.font='bold 18px monospace';ctx.fillText("La vendetta di Piero's Snack",W/2,H/2);
+      ctx.fillStyle='#aaa';ctx.font='16px monospace';ctx.fillText(isMobile?'Tocca 🔫 per giocare':'Clicca per giocare',W/2,H/2+40);
+      ctx.textAlign='left';
+    }
+
+    // End screen with stats
+    if(gameOver){
+      ctx.fillStyle='rgba(0,0,0,0.8)';ctx.fillRect(0,0,W,H);
+      ctx.textAlign='center';
+
+      if(won){
+        // Victory screen
+        const elapsed=Math.floor((endTime-startTime)/1000);
+        const mins=Math.floor(elapsed/60);const secs=elapsed%60;
+
+        // Animated glow effect
+        const glow=Math.sin(Date.now()/300)*0.3+0.7;
+        ctx.fillStyle=`rgba(0,255,0,${glow})`;ctx.font='bold 48px monospace';
+        ctx.fillText('HAI VINTO!',W/2,H/2-80);
+
+        ctx.fillStyle='#fa0';ctx.font='bold 20px monospace';
+        ctx.fillText("Piero's Snack e' stato vendicato!",W/2,H/2-40);
+
+        // Stats box
+        ctx.fillStyle='rgba(0,50,0,0.5)';
+        ctx.fillRect(W/2-160,H/2-20,320,120);
+        ctx.strokeStyle='#0f0';ctx.lineWidth=2;ctx.strokeRect(W/2-160,H/2-20,320,120);
+
+        ctx.fillStyle='#fff';ctx.font='16px monospace';
+        ctx.fillText('TEMPO: '+mins+'m '+String(secs).padStart(2,'0')+'s',W/2,H/2+10);
+        ctx.fillText('HP RIMASTI: '+hp+'/100',W/2,H/2+35);
+        ctx.fillText('MUNIZIONI: '+ammo+'/50',W/2,H/2+60);
+
+        // Rating
+        let rating='';let ratingCol='#fff';
+        if(hp>=80&&elapsed<60){rating='S — LEGGENDA!';ratingCol='#f0f';}
+        else if(hp>=60&&elapsed<90){rating='A — ECCELLENTE';ratingCol='#0ff';}
+        else if(hp>=40){rating='B — BRAVO';ratingCol='#0f0';}
+        else if(hp>=20){rating='C — DISCRETO';ratingCol='#ff0';}
+        else{rating='D — SOPRAVVISSUTO';ratingCol='#f80';}
+        ctx.fillStyle=ratingCol;ctx.font='bold 20px monospace';
+        ctx.fillText('GRADO: '+rating,W/2,H/2+90);
+
+        ctx.fillStyle='#aaa';ctx.font='14px monospace';
+        ctx.fillText(isMobile?'🔫 Rivinci  |  ✕ Esci':'Premi R per rigiocare | ESC per uscire',W/2,H/2+125);
+      }else{
+        // Death screen
+        const deathPulse=Math.sin(Date.now()/400)*0.3+0.7;
+        ctx.fillStyle=`rgba(255,0,0,${deathPulse})`;ctx.font='bold 52px monospace';
+        ctx.fillText('SEI MORTO',W/2,H/2-40);
+
+        ctx.fillStyle='#aaa';ctx.font='20px monospace';
+        ctx.fillText('Piero ti ha sopraffatto...',W/2,H/2+10);
+        ctx.fillStyle='#fff';ctx.font='16px monospace';
+        ctx.fillText('Nemici uccisi: '+kills+'/'+totalE,W/2,H/2+45);
+        ctx.fillStyle='#aaa';ctx.font='14px monospace';
+        ctx.fillText(isMobile?'🔫 Riprova  |  ✕ Esci':'Premi R per rigiocare | ESC per uscire',W/2,H/2+80);
+      }
+      ctx.textAlign='left';
+    }
+  }
+
+  let lastTime=0;
+  function loop(t){
+    if(!document.getElementById('doomOverlay'))return;
+    const dt=Math.min((t-lastTime)/1000,0.05);lastTime=t;
+    movePlayer(dt);moveEnemies(dt);updateFireballs(dt);render();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(t=>{lastTime=t;loop(t);});
+}
+
+loadSession();updateNav();if(!currentUser){showPage('login');}else{renderHome();}
+</script>
+</body>
+</html>
+
 <!-- PWA -->
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
