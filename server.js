@@ -31,6 +31,11 @@ app.use('/api/', rateLimit({
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '10kb' }));
 
+// ── Health check (usato dal cron keep-alive) ─────────────
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true });
+});
+
 // ── Routes API ───────────────────────────────────────────
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/restaurants', require('./routes/restaurants'));
